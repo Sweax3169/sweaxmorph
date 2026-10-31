@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3 (2026-11-01)
+
+- Windows sometimes opens Morph without giving it focus (when you were busy in another window). Morph then never "lost" focus, so it stayed in its focused look: the haze kept catching clicks meant for the windows below and Morph never dozed. Resting now follows focus on every frame, whether or not focus ever arrived.
+
 ## 1.0.2 (2026-11-01)
 
 - **Morph waits for you.** Opening Morph and then clicking a file in Explorer to drag it in made Morph leave, because it closed whenever it lost focus. Now it stays on top: its haze fades so the windows under it can be clicked, comes back while a drag approaches, and Morph opens its mouth as before. It closes with the close button, Esc, the shortcut again, or a few seconds after a finished conversion.

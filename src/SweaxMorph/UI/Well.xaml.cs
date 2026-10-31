@@ -41,6 +41,7 @@ public partial class Well : Window
     bool _resting, _near, _dozing, _pressed;
     Point _pressAt, _lastCursor;
     double _stillFor;
+    long _openedAt;
     readonly DispatcherTimer _watch = new() { Interval = TimeSpan.FromMilliseconds(200) };
     string? _lastTarget;
     Engine? _fixEngine;
@@ -98,6 +99,7 @@ public partial class Well : Window
     public void Open(Opening how, IReadOnlyList<string>? files = null)
     {
         _autoHide.Stop();
+        _openedAt = Environment.TickCount64;
         _near = _pressed = false;
         // opened in the middle of a drag (Space in Explorer) it has no focus: it rests, and the haze follows the drag
         Rest(how == Opening.Drag && Win32.IsKeyDown(Win32.VK_LBUTTON));
@@ -275,6 +277,12 @@ public partial class Well : Window
         {
             var p = PointFromScreen(new Point(pt.X, pt.Y));
             if (_hot == null) Morph.LookAt(TranslatePoint(p, Morph));
+            // resting follows focus, also when Windows never gave the Well focus at all (then no Deactivated comes)
+            if (_state is State.Idle or State.Picking && !_modal && Environment.TickCount64 - _openedAt > 600)
+            {
+                bool rest = !IsActive;
+                if (rest != _resting) Rest(rest);
+            }
             if (_resting)
             {
                 Watch(p);
