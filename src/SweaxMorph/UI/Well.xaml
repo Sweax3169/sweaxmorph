@@ -40,6 +40,12 @@
             <TextBlock x:Name="CountText" FontWeight="Black" FontSize="13.5" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource Ink}"/>
         </Border>
 
+        <!-- settings and close, just outside the ring of petals -->
+        <StackPanel x:Name="Corner" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="496,34,0,0">
+            <Button x:Name="SettingsButton" Style="{StaticResource Mini}" Tag="&#xE713;" Click="Settings_Click"/>
+            <Button x:Name="CloseButton" Style="{StaticResource Mini}" Tag="&#xE711;" Click="Close_Click"/>
+        </StackPanel>
+
         <!-- what is going on, under Morph -->
         <StackPanel x:Name="Info" VerticalAlignment="Top" HorizontalAlignment="Center" Width="470" Margin="0,486,0,0">
             <TextBlock x:Name="TitleText" FontSize="23" FontWeight="Black" TextAlignment="Center" TextTrimming="CharacterEllipsis"/>

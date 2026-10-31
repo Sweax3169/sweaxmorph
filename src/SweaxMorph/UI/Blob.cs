@@ -38,8 +38,8 @@ public sealed class Blob : FrameworkElement
     readonly List<Particle> _particles = [];
     readonly Point[] _pts = new Point[N];
     readonly Func<double, bool> _stepper;
-    bool _running;
-    double _t, _nextBlink = 2.5, _blinkUntil = -1, _sparkleClock, _bubbleClock;
+    bool _running, _dozing;
+    double _t, _nextBlink = 2.5, _blinkUntil = -1, _sparkleClock, _bubbleClock, _eyesAwake = 1;
 
     Sp _squash = new(0), _lift = new(0), _eyeOpen = new(1), _happy = new(0), _mouthOpen = new(0), _mouthCurve = new(0.6),
        _mouthWide = new(0.22), _reach = new(0), _fill = new(0), _lookX = new(0), _lookY = new(0), _sweat = new(0), _hover = new(0);
@@ -91,7 +91,23 @@ public sealed class Blob : FrameworkElement
 
     void Face(double open, double curve, double wide, double eyes)
     {
-        _mouthOpen.T = open; _mouthCurve.T = curve; _mouthWide.T = wide; _eyeOpen.T = eyes;
+        _mouthOpen.T = open; _mouthCurve.T = curve; _mouthWide.T = wide;
+        _eyesAwake = eyes;
+        _eyeOpen.T = _dozing ? 0.06 : eyes;
+    }
+
+    /// <summary>Waiting with nothing to do: the eyes close and, once the gel has settled, nothing is redrawn.</summary>
+    public bool Dozing
+    {
+        get => _dozing;
+        set
+        {
+            if (_dozing == value) return;
+            _dozing = value;
+            _eyeOpen.T = value ? 0.06 : _eyesAwake;
+            if (!value) _nextBlink = _t + 1.5;
+            Wake();
+        }
     }
 
     /// <summary>The colours of the gel. Morph takes on the colour of the files it holds.</summary>
@@ -223,7 +239,7 @@ public sealed class Blob : FrameworkElement
         _c1 = Lerp(_c1, _t1, k); _c2 = Lerp(_c2, _t2, k); _liquid = Lerp(_liquid, _liquidTarget, k);
 
         // blinking, but never with happy or squinting eyes
-        if (_t > _nextBlink && _mood is not Mood.Happy and not Mood.Working)
+        if (_t > _nextBlink && !_dozing && _mood is not Mood.Happy and not Mood.Working)
         {
             _blinkUntil = _t + 0.11;
             _nextBlink = _t + 2.2 + _rnd.NextDouble() * 3.8;
@@ -252,9 +268,10 @@ public sealed class Blob : FrameworkElement
         }
 
         InvalidateVisual();
-        bool settled = _particles.Count == 0 && Math.Abs(_squash.V) < 0.01 && Math.Abs(_lift.V) < 0.05 && _dv.All(v => Math.Abs(v) < 0.002);
-        // keep breathing while on screen: Morph is alive
-        return IsVisible || !settled;
+        bool settled = _particles.Count == 0 && Math.Abs(_squash.V) < 0.01 && Math.Abs(_lift.V) < 0.05 && _dv.All(v => Math.Abs(v) < 0.002)
+            && Math.Abs(_eyeOpen.X - _eyeOpen.T) < 0.004 && Math.Abs(_eyeOpen.V) < 0.01;
+        // keep breathing while on screen: Morph is alive (a dozing Morph holds still)
+        return (IsVisible && !_dozing) || !settled;
     }
 
     // ── drawing ─────────────────────────────────────────────────────────────

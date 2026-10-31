@@ -147,7 +147,8 @@ public partial class App : Application
     void ToggleWell()
     {
         var w = GetWell();
-        if (w.IsVisible && w.IsActive) w.HideWell();
+        // the shortcut puts Morph away again, also while it waits on top of another window
+        if (w.Showing) w.HideWell();
         else w.Open(Well.Opening.Hotkey);
     }
 

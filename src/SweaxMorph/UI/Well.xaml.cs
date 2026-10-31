@@ -37,6 +37,11 @@ public partial class Well : Window
     Petal? _hot;
     CancellationTokenSource? _cts;
     bool _moreOpen, _modal, _draggingOut, _hiding, _awake;
+    // out of focus the Well rests: the haze fades so clicks reach the windows below, until a drag comes near
+    bool _resting, _near, _dozing, _pressed;
+    Point _pressAt, _lastCursor;
+    double _stillFor;
+    readonly DispatcherTimer _watch = new() { Interval = TimeSpan.FromMilliseconds(200) };
     string? _lastTarget;
     Engine? _fixEngine;
     double _t;
@@ -62,8 +67,12 @@ public partial class Well : Window
         {
             if (_modal || _draggingOut || !IsVisible) return;
             if (_state == State.Working) { HideWell(); return; } // keeps converting; Morph pops back when done
-            HideWell();
+            // you went to pick a file in Explorer: Morph waits on top for it instead of leaving
+            Rest(true);
+            if (_state is State.Done or State.Failed) _autoHide.Start();
         };
+        Activated += (_, _) => Rest(false);
+        _watch.Tick += (_, _) => { if (Stirring()) Rouse(); };
         PreviewKeyDown += OnKey;
         TextInput += OnTextInput;
         QBest.Content = Loc.T("Quality.Best");
@@ -71,6 +80,8 @@ public partial class Well : Window
         QSmall.Content = Loc.T("Quality.Small");
         Combine.Content = Loc.T("Pick.Combine");
         StopButton.Content = Loc.T("Work.Cancel");
+        SettingsButton.ToolTip = Loc.T("Tray.Settings");
+        CloseButton.ToolTip = Loc.T("Well.Close");
         AgainButton.Content = Loc.T("Done.Again");
         SearchHint.Text = Loc.T("Pick.Search");
         Search.KeyDown += (_, e) =>
@@ -87,6 +98,9 @@ public partial class Well : Window
     public void Open(Opening how, IReadOnlyList<string>? files = null)
     {
         _autoHide.Stop();
+        _near = _pressed = false;
+        // opened in the middle of a drag (Space in Explorer) it has no focus: it rests, and the haze follows the drag
+        Rest(how == Opening.Drag && Win32.IsKeyDown(Win32.VK_LBUTTON));
         bool wasVisible = IsVisible && !_hiding;
         _hiding = false;
         if (_state is State.Done or State.Failed && files == null && how != Opening.Drag) Reset();
@@ -127,10 +141,75 @@ public partial class Well : Window
             if (!_hiding) return;
             _hiding = false;
             Hide();
+            _resting = _near = false;
+            Rouse();
             if (_moreOpen) CloseMore(false);
             if (_state is State.Picking or State.Idle) Reset();
         };
         t.Start();
+    }
+
+    public bool Showing => IsVisible && !_hiding;
+
+    // ── resting while you are elsewhere ─────────────────────────────────────
+
+    /// <summary>
+    /// Out of focus the Well stays on top, waiting for the file you went to pick, but its haze fades so the
+    /// windows under it can be clicked; only Morph, the petals and the words still catch the mouse.
+    /// </summary>
+    void Rest(bool on)
+    {
+        _resting = on;
+        if (!on) Rouse();
+        UpdateHaze();
+    }
+
+    /// <summary>The haze is there while the Well has focus, and while a drag comes near so the whole cloud catches it.</summary>
+    void UpdateHaze()
+    {
+        bool show = !_resting || _near;
+        Springs.To(Haze, OpacityProperty, show ? 1 : 0, show ? 320 : 220, 1);
+    }
+
+    /// <summary>Per frame while resting: notice a drag on its way in, and doze off when nothing happens.</summary>
+    void Watch(Point p)
+    {
+        bool down = Win32.IsKeyDown(Win32.VK_LBUTTON);
+        if (down && !_pressed) _pressAt = p;
+        _pressed = down;
+        // a press that moves is a drag (a plain click on a file under the cloud must not bring it back)
+        bool near = down && (p - _pressAt).Length > 8 && (p - Heart).Length < 340;
+        if (near != _near) { _near = near; UpdateHaze(); }
+    }
+
+    /// <summary>The pointer moved near the Well, or a button went down anywhere: time to wake.</summary>
+    bool Stirring()
+    {
+        if (!Win32.GetCursorPos(out var pt) || PresentationSource.FromVisual(this) == null) return false;
+        var p = PointFromScreen(new Point(pt.X, pt.Y));
+        bool moved = (p - _lastCursor).Length > 2;
+        _lastCursor = p;
+        return Win32.IsKeyDown(Win32.VK_LBUTTON) || (moved && (p - Heart).Length < 520);
+    }
+
+    /// <summary>Nothing has stirred for a while: Morph closes its eyes and the Well stops drawing frames.</summary>
+    void Doze()
+    {
+        if (_dozing) return;
+        _dozing = true;
+        Morph.Dozing = true;
+        Stirring();
+        _watch.Start();
+    }
+
+    void Rouse()
+    {
+        _stillFor = 0;
+        if (!_dozing) return;
+        _dozing = false;
+        _watch.Stop();
+        Morph.Dozing = false;
+        if (IsVisible) Wake();
     }
 
     public bool Busy => _state == State.Working;
@@ -169,9 +248,9 @@ public partial class Well : Window
         int w = (int)Math.Round(Width * k), h = (int)Math.Round(Height * k);
         int x = pt.X - (int)(Heart.X * k), y = pt.Y - (int)(Heart.Y * k);
         var work = mi.rcWork;
-        // the haze may run off the edge; Morph and the text may not
-        x = Math.Clamp(x, work.Left - (int)(40 * k), work.Right - w + (int)(40 * k));
-        y = Math.Clamp(y, work.Top - (int)(60 * k), work.Bottom - h + (int)(20 * k));
+        // the haze may run off the edge; Morph, the text and the settings and close buttons may not
+        x = Math.Clamp(x, work.Left - (int)(40 * k), work.Right - w + (int)(28 * k));
+        y = Math.Clamp(y, work.Top - (int)(30 * k), work.Bottom - h + (int)(20 * k));
         Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, x, y, w, h, Win32.SWP_NOACTIVATE);
     }
 
@@ -185,7 +264,7 @@ public partial class Well : Window
     /// <summary>Per frame while visible: petals float, Morph follows the pointer anywhere on screen, the search wave flows.</summary>
     bool Tick(double dt)
     {
-        if (!IsVisible) { _awake = false; return false; }
+        if (!IsVisible || _dozing) { _awake = false; return false; }
         _t += dt;
         for (int i = 0; i < _petals.Count; i++)
         {
@@ -196,6 +275,12 @@ public partial class Well : Window
         {
             var p = PointFromScreen(new Point(pt.X, pt.Y));
             if (_hot == null) Morph.LookAt(TranslatePoint(p, Morph));
+            if (_resting)
+            {
+                Watch(p);
+                _stillFor = Stirring() ? 0 : _stillFor + dt;
+                if (_stillFor > 8 && !_near && _state != State.Working) Doze();
+            }
         }
         if (_moreOpen) DrawWave();
         return true;
@@ -484,6 +569,7 @@ public partial class Well : Window
     {
         e.Handled = true;
         _leave.Stop();
+        Rouse();
         var files = Dropped(e);
         if (files == null || _draggingOut || _state == State.Working) { e.Effects = DragDropEffects.None; return; }
         e.Effects = DragDropEffects.Copy;
@@ -918,6 +1004,14 @@ public partial class Well : Window
     }
 
     void Stop_Click(object sender, RoutedEventArgs e) => _cts?.Cancel();
+
+    void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        HideWell();
+        App.Instance.ShowSettings();
+    }
+
+    void Close_Click(object sender, RoutedEventArgs e) => HideWell();
 
     void Again_Click(object sender, RoutedEventArgs e)
     {

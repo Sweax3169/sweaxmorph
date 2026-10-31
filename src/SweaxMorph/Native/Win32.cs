@@ -18,7 +18,7 @@ internal static class Win32
     public const int VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_MENU = 0x12;
     public const int VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_SNAPSHOT = 0x2C;
     public const int VK_LSHIFT = 0xA0, VK_RSHIFT = 0xA1, VK_LCONTROL = 0xA2, VK_RCONTROL = 0xA3, VK_LMENU = 0xA4, VK_RMENU = 0xA5;
-    public const int VK_V = 0x56, VK_S = 0x53, VK_ESCAPE = 0x1B;
+    public const int VK_V = 0x56, VK_S = 0x53, VK_ESCAPE = 0x1B, VK_LBUTTON = 0x01;
     public const int VK_MASK = 0xE8; // unassigned; used to stop the Start menu from opening
 
     // ── clipboard formats ────────────────────────────────────────────────────
