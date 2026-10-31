@@ -141,7 +141,7 @@ Hiçbir şey bir yere yüklenmez. Tek ağ trafiği, motorların projelerin resmi
 2. Kendini `%LOCALAPPDATA%\Programs\SweaxMorph` içine kopyalar, sağ tık girişini ekler ve Windows ile başlar. Yönetici izni gerekmez.
 3. <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd>'ye bas ve Morph'a bir şey bırak.
 
-Ayarlar, tepsi simgesinin menüsünde. Kaldırmak için Ayarlar'dan sağ tık girişini ve başlangıçta açılmayı kapat, çık ve klasörü sil.
+Sen Gezgin'de dosya seçerken Morph üstte bekler; × düğmesi, <kbd>Esc</kbd> ya da kısayolla kapanır. Ayarlar, Morph'un sağ üstündeki dişliden ya da tepsi simgesinin menüsünden açılır. Kaldırmak için Ayarlar'dan sağ tık girişini ve başlangıçta açılmayı kapat, çık ve klasörü sil.
 
 <img src="docs/media/settings-light-tr.png" width="720" alt="SweaxMorph ayarları">
 

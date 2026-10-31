@@ -142,7 +142,7 @@ releases.
 2. It copies itself to `%LOCALAPPDATA%\Programs\SweaxMorph`, adds the right-click entry and starts with Windows. No admin rights needed.
 3. Press <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> and drop something on Morph.
 
-Settings live in the tray icon's menu. To remove it, turn off the right-click entry and start-up in Settings, quit, and delete the folder.
+Morph waits on top while you go and pick a file in Explorer; close it with its × button, <kbd>Esc</kbd> or the shortcut. Settings open from the gear on Morph's top-right or the tray icon's menu. To remove SweaxMorph, turn off the right-click entry and start-up in Settings, quit, and delete the folder.
 
 <img src="docs/media/settings-light-en.png" width="720" alt="SweaxMorph settings">
 
