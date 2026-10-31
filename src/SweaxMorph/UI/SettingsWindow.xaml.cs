@@ -49,6 +49,7 @@ public partial class SettingsWindow : Window
         HShortcut.Text = Loc.T("S.Shortcut");
         ShortcutHint.Text = Loc.T("S.ShortcutHint");
         RecordButton.Content = Loc.T("S.Record");
+        MacroHint.Text = Loc.T("S.MacroHint");
         DragToggle.Content = Loc.T("S.DragTrigger");
         DragHint.Text = Loc.T("S.DragTriggerHint");
         HExplorer.Text = Loc.T("S.Explorer");
@@ -192,7 +193,8 @@ public partial class SettingsWindow : Window
         App.Instance.RecordHotkey(h =>
         {
             _recording = false;
-            if (h is { } hk)
+            // a bare key that is used for typing would be stolen everywhere: only F13–F24, Pause and the like may stand alone
+            if (h is { } hk && (hk.HasModifier || Hotkey.IsFree(hk.Key)))
             {
                 S.Hotkey = hk.Spec;
                 S.Save();

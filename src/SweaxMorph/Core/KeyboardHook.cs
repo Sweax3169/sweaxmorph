@@ -26,17 +26,23 @@ public readonly record struct Hotkey(bool Win, bool Ctrl, bool Alt, bool Shift, 
                     break;
             }
         }
-        if (!win && !ctrl && !alt) win = true; // never steal a bare key
+        if (!win && !ctrl && !alt && !IsFree(key)) win = true; // never steal a bare key that is used for typing
         return new Hotkey(win, ctrl, alt, shift, key);
     }
 
     static readonly Dictionary<int, string> Named = new()
     {
         [0x20] = "Space", [0x2D] = "Insert", [0x2C] = "PrtSc", [0x24] = "Home", [0x23] = "End", [0x21] = "PgUp", [0x22] = "PgDn",
+        [0x13] = "Pause", [0x91] = "ScrollLock", [0xB6] = "App1", [0xB7] = "App2",
     };
 
     /// <summary>Keys a shortcut can end on: letters, digits, F1–F24 and a few named keys.</summary>
     public static bool IsBindable(int vk) => vk is (>= 0x41 and <= 0x5A) or (>= 0x30 and <= 0x39) or (>= 0x70 and <= 0x87) || Named.ContainsKey(vk);
+
+    /// <summary>Keys nobody types with (F13–F24, Pause, Scroll Lock, the launch keys): a shortcut on its own, which suits macro keys.</summary>
+    public static bool IsFree(int vk) => vk is (>= 0x7C and <= 0x87) or 0x13 or 0x91 or 0xB6 or 0xB7;
+
+    public bool HasModifier => Win || Ctrl || Alt;
 
     /// <summary>The form saved in settings: "Win+Shift+T".</summary>
     public string Spec => ToString().Replace(" ", "");
@@ -132,9 +138,11 @@ public sealed class KeyboardHook : IDisposable
             int msg = (int)wParam;
             bool down = msg is Win32.WM_KEYDOWN or Win32.WM_SYSKEYDOWN;
             bool up = msg is Win32.WM_KEYUP or Win32.WM_SYSKEYUP;
-            bool injected = (kb.flags & Win32.LLKHF_INJECTED) != 0;
+            // keys we send ourselves (Ctrl+V, the Start-menu blocker) are skipped; keys injected by macro software
+            // and keyboard drivers are welcome, so a macro key can press the shortcut
+            bool ours = (kb.flags & Win32.LLKHF_INJECTED) != 0 && kb.dwExtraInfo == Win32.SweaxMark;
 
-            if (!injected)
+            if (!ours)
             {
                 int vk = (int)kb.vkCode;
                 if (down && _record is { } record)

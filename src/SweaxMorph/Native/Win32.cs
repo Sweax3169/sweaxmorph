@@ -20,6 +20,8 @@ internal static class Win32
     public const int VK_LSHIFT = 0xA0, VK_RSHIFT = 0xA1, VK_LCONTROL = 0xA2, VK_RCONTROL = 0xA3, VK_LMENU = 0xA4, VK_RMENU = 0xA5;
     public const int VK_V = 0x56, VK_S = 0x53, VK_ESCAPE = 0x1B, VK_LBUTTON = 0x01;
     public const int VK_MASK = 0xE8; // unassigned; used to stop the Start menu from opening
+    /// <summary>Set as dwExtraInfo on every key we send, so our own keyboard hook can tell them apart.</summary>
+    public static readonly IntPtr SweaxMark = new(0x53574158); // "SWAX"
 
     // ── clipboard formats ────────────────────────────────────────────────────
     public const uint CF_TEXT = 1, CF_BITMAP = 2, CF_DIB = 8, CF_UNICODETEXT = 13, CF_HDROP = 15, CF_DIBV5 = 17;
@@ -214,7 +216,7 @@ internal static class Win32
     {
         uint flags = up ? KEYEVENTF_KEYUP : 0;
         if (vk is VK_LWIN or VK_RWIN or VK_RMENU or VK_RCONTROL) flags |= KEYEVENTF_EXTENDEDKEY;
-        return new INPUT { type = INPUT_KEYBOARD, U = new InputUnion { ki = new KEYBDINPUT { wVk = (ushort)vk, dwFlags = flags } } };
+        return new INPUT { type = INPUT_KEYBOARD, U = new InputUnion { ki = new KEYBDINPUT { wVk = (ushort)vk, dwFlags = flags, dwExtraInfo = SweaxMark } } };
     }
 
     public static void Send(params INPUT[] inputs) => SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());

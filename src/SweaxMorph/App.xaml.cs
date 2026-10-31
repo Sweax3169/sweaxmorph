@@ -53,7 +53,8 @@ public partial class App : Application
         if (!first)
         {
             // already running: hand over the files (or the request) and leave
-            Ipc.Send(Has("--quit") ? "quit" : Has("--settings") ? "settings" : files.Count > 0 ? "convert" : "open", files);
+            // --toggle is the shortcut for macro keys and launchers that run a program instead of pressing keys
+            Ipc.Send(Has("--quit") ? "quit" : Has("--settings") ? "settings" : Has("--toggle") ? "toggle" : files.Count > 0 ? "convert" : "open", files);
             Shutdown();
             return;
         }
@@ -129,6 +130,7 @@ public partial class App : Application
         {
             case "quit": Quit(); break;
             case "settings": ShowSettings(); break;
+            case "toggle": ToggleWell(); break;
             default: OpenWell(files.Count > 0 ? Well.Opening.Files : Well.Opening.Hotkey, files.Count > 0 ? files : null); break;
         }
     }

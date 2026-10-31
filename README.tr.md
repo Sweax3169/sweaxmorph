@@ -41,6 +41,7 @@ sıvıyla dolar ve sonucu asıl dosyanın yanına bırakır. Sonucu doğrudan bi
 | | |
 |---|---|
 | <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Morph'u her yerden, imlecinin altında açar. Kısayolu Ayarlar'dan değiştirebilirsin; istediğin tuş birleşimini kaydeder. |
+| Makro tuşu | Klavyendeki makro tuşuna <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F9</kbd> gibi bir birleşim kaydet, sonra Ayarlar'da **Değiştir**'e basıp makro tuşuna bas. F13–F24, Pause ve Scroll Lock tek başına da olur; program çalıştıran makro yazılımları `SweaxMorph.exe --toggle` kullanabilir. |
 | Sürüklerken <kbd>Boşluk</kbd> | Gezgin'de dosya sürüklemeye başla, Boşluk'a dokun; Morph tam dosyaların altında belirir. Morph'a ya da doğrudan bir yaprağa bırak. |
 | Sağ tık → **SweaxMorph ile dönüştür** | **Gönder** menüsünde de var. On dosya seçersen hepsi birlikte gelir. Windows 11'de **Diğer seçenekleri göster** altında. |
 

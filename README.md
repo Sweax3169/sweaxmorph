@@ -41,6 +41,7 @@ with liquid as it works, then pops out the result next to your original. Drag th
 | | |
 |---|---|
 | <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Opens Morph under your pointer, from anywhere. Change the shortcut in Settings, it records any combination. |
+| A macro key | Record a combination such as <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F9</kbd> on your keyboard's macro key, then click **Change** in Settings and press the macro key. F13–F24, Pause and Scroll Lock work on their own; macro apps that run programs can use `SweaxMorph.exe --toggle`. |
 | <kbd>Space</kbd> while dragging | Start dragging files in Explorer, tap Space, and Morph pops up right under them. Drop on Morph, or straight on a petal. |
 | Right-click → **Convert with SweaxMorph** | Also in **Send to**. Select ten files and they all arrive together. On Windows 11 it's under **Show more options**. |
 

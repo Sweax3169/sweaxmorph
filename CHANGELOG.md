@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4 (2026-11-01)
+
+- **Shortcuts from macro keys.** Keys sent by macro software and keyboard drivers used to be ignored, so a macro key that pressed the shortcut did nothing. They count now; only SweaxMorph's own keys are marked and skipped.
+- F13–F24, Pause, Scroll Lock and the launch keys can be the shortcut on their own; a plain letter or digit is no longer accepted alone by the recorder.
+- `SweaxMorph.exe --toggle` opens Morph, or puts it away if it is showing, for macro apps and launchers that run programs.
+- Settings explains how to put the shortcut on a macro key.
+
 ## 1.0.3 (2026-11-01)
 
 - Windows sometimes opens Morph without giving it focus (when you were busy in another window). Morph then never "lost" focus, so it stayed in its focused look: the haze kept catching clicks meant for the windows below and Morph never dozed. Resting now follows focus on every frame, whether or not focus ever arrived.
