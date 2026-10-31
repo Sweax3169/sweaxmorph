@@ -1,0 +1,186 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- a round gel button with its label underneath -->
+    <Style x:Key="Bubble" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink2}"/>
+        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <StackPanel Background="Transparent" Margin="5,0">
+                        <Grid x:Name="Ball" Width="38" Height="38" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse>
+                                <Ellipse.Fill>
+                                    <LinearGradientBrush StartPoint="0.2,0" EndPoint="0.8,1">
+                                        <GradientStop Color="#B9AEFF" Offset="0"/>
+                                        <GradientStop Color="{DynamicResource AccentColor}" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <Ellipse Width="16" Height="8" Margin="-12,-18,0,0" Opacity="0.75">
+                                <Ellipse.Fill>
+                                    <RadialGradientBrush><GradientStop Color="#FFFFFFFF" Offset="0"/><GradientStop Color="#00FFFFFF" Offset="1"/></RadialGradientBrush>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <TextBlock Text="{TemplateBinding Tag}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ball" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1.1" ScaleY="1.1"/></Setter.Value></Setter>
+                            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Ball" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.94" ScaleY="0.94"/></Setter.Value></Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- a small round action on a result -->
+    <Style x:Key="Mini" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid x:Name="M" Width="32" Height="32" Margin="3,0" RenderTransformOrigin="0.5,0.5" Background="Transparent">
+                        <Ellipse x:Name="E" Fill="{DynamicResource Surface2}" Stroke="{DynamicResource Line}" StrokeThickness="1"/>
+                        <TextBlock x:Name="G" Text="{TemplateBinding Tag}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13.5" Foreground="{DynamicResource Ink2}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="E" Property="Fill" Value="{DynamicResource Accent}"/>
+                            <Setter TargetName="E" Property="Stroke" Value="{DynamicResource Accent}"/>
+                            <Setter TargetName="G" Property="Foreground" Value="White"/>
+                            <Setter TargetName="M" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1.1" ScaleY="1.1"/></Setter.Value></Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- a plain word you can click -->
+    <Style x:Key="Word" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink2}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="ExtraBold"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <StackPanel Background="Transparent" Orientation="Horizontal" Margin="8,2">
+                        <TextBlock Text="{TemplateBinding Tag}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,1,6,0"/>
+                        <TextBlock x:Name="T" Text="{TemplateBinding Content}"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                            <Setter TargetName="T" Property="TextDecorations" Value="Underline"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- a droplet that fills when chosen (quality, combine) -->
+    <Style x:Key="Drop" TargetType="ToggleButton">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink2}"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontWeight" Value="ExtraBold"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <StackPanel Orientation="Horizontal" Background="Transparent" Margin="7,0">
+                        <Grid Width="16" Height="16" VerticalAlignment="Center">
+                            <Ellipse Stroke="{DynamicResource Ink3}" StrokeThickness="2"/>
+                            <Ellipse x:Name="Fill" Margin="0" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform><ScaleTransform x:Name="FS" ScaleX="0.3" ScaleY="0.3"/></Ellipse.RenderTransform>
+                                <Ellipse.Fill>
+                                    <LinearGradientBrush StartPoint="0.2,0" EndPoint="0.8,1">
+                                        <GradientStop Color="#C8BEFF" Offset="0"/>
+                                        <GradientStop Color="{DynamicResource AccentColor}" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                        </Grid>
+                        <TextBlock Text="{TemplateBinding Content}" Margin="6,0,0,1" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Fill" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                                        <DoubleAnimation Storyboard.TargetName="FS" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.45"><DoubleAnimation.EasingFunction><ElasticEase Oscillations="2" Springiness="5"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="FS" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.45"><DoubleAnimation.EasingFunction><ElasticEase Oscillations="2" Springiness="5"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Fill" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.15"/>
+                                        <DoubleAnimation Storyboard.TargetName="FS" Storyboard.TargetProperty="ScaleX" To="0.3" Duration="0:0:0.15"/>
+                                        <DoubleAnimation Storyboard.TargetName="FS" Storyboard.TargetProperty="ScaleY" To="0.3" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- a slim gel scrollbar: a soft thumb, no arrows -->
+    <Style TargetType="ScrollBar">
+        <Setter Property="Width" Value="10"/>
+        <Setter Property="MinWidth" Value="10"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Track x:Name="PART_Track" IsDirectionReversed="True" Margin="2,4">
+                        <Track.Thumb>
+                            <Thumb>
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Border x:Name="T" CornerRadius="3" Background="{DynamicResource Line}"/>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="T" Property="Background" Value="{DynamicResource Ink3}"/></Trigger>
+                                            <Trigger Property="IsDragging" Value="True"><Setter TargetName="T" Property="Background" Value="{DynamicResource Accent}"/></Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Track.Thumb>
+                    </Track>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Height" Value="10"/>
+                <Setter Property="Width" Value="Auto"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

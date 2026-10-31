@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SweaxMorph — drop any file, pick a format</title>
+<meta name="description" content="A cute, fast file converter for Windows. Drop any file on Morph, pick a format, done. 126 formats, offline.">
+<meta property="og:title" content="SweaxMorph">
+<meta property="og:description" content="Drop any file on Morph. Pick a format. Done. 126 formats for Windows 10 and 11, offline.">
+<meta property="og:image" content="https://sweax3169.github.io/sweaxmorph/morph-512.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+@font-face { font-family: Nunito; src: url(fonts/Nunito-SemiBold.ttf) format("truetype"); font-weight: 600; font-display: swap; }
+@font-face { font-family: Nunito; src: url(fonts/Nunito-Bold.ttf) format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: Nunito; src: url(fonts/Nunito-ExtraBold.ttf) format("truetype"); font-weight: 800; font-display: swap; }
+@font-face { font-family: Nunito; src: url(fonts/Nunito-Black.ttf) format("truetype"); font-weight: 900; font-display: swap; }
+
+:root {
+  --haze: #FFFBFD; --haze2: #F7F1FC; --ink: #2B2140; --ink2: #6F6585; --ink3: #A49BB6; --surface: #FFFFFF; --line: #EAE3F2;
+  --accent: #8B7CFF; --pink: #FF6B9A; --teal: #2EC4B6; --shadow: 0 18px 50px -20px rgba(70, 40, 120, .28);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --haze: #1A1522; --haze2: #211B2B; --ink: #F6F0FF; --ink2: #B8ADCC; --ink3: #7D7392; --surface: #272033; --line: #3A3147; --accent: #A498FF; --shadow: 0 18px 50px -20px rgba(0,0,0,.6); color-scheme: dark; }
+}
+:root[data-theme="dark"] { --haze: #1A1522; --haze2: #211B2B; --ink: #F6F0FF; --ink2: #B8ADCC; --ink3: #7D7392; --surface: #272033; --line: #3A3147; --accent: #A498FF; --shadow: 0 18px 50px -20px rgba(0,0,0,.6); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: Nunito, "Segoe UI", system-ui, sans-serif; font-weight: 700; color: var(--ink); background: var(--haze); line-height: 1.55; overflow-x: hidden; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+.glow { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.glow i { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .45; animation: drift 22s ease-in-out infinite alternate; }
+.glow i:nth-child(1) { width: 520px; height: 520px; background: #CDB8FF; left: -160px; top: -140px; }
+.glow i:nth-child(2) { width: 460px; height: 460px; background: #FF9AC4; right: -140px; top: 30%; animation-delay: -6s; }
+.glow i:nth-child(3) { width: 420px; height: 420px; background: #8FE3D8; left: 20%; bottom: -200px; opacity: .3; animation-delay: -12s; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .glow i { opacity: .16; } }
+:root[data-theme="dark"] .glow i { opacity: .16; }
+@keyframes drift { to { transform: translate(60px, 40px) scale(1.08); } }
+main, header, footer { position: relative; z-index: 1; }
+
+header { padding: 18px 0; }
+header .wrap { display: flex; align-items: center; gap: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 900; font-size: 20px; }
+.brand img { width: 34px; height: 34px; }
+.brand:hover { text-decoration: none; }
+nav { margin-left: auto; display: flex; gap: 22px; align-items: center; font-size: 15px; }
+nav a { color: var(--ink2); font-weight: 800; }
+nav a:hover { color: var(--ink); text-decoration: none; }
+.lang { display: flex; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; }
+.lang button { border: 0; background: transparent; color: var(--ink2); font: inherit; font-weight: 900; font-size: 13px; padding: 5px 10px; cursor: pointer; }
+.lang button.on { background: var(--accent); color: #fff; }
+@media (max-width: 760px) { nav a.hide-sm { display: none; } }
+
+/* hero */
+.hero { display: grid; grid-template-columns: 1.02fr 1fr; gap: 20px; align-items: center; min-height: 640px; padding: 20px 0 40px; }
+.hero h1 { font-size: clamp(40px, 6vw, 68px); line-height: 1.04; margin: 0 0 18px; font-weight: 900; letter-spacing: -.01em; }
+.hero h1 em { font-style: normal; background: linear-gradient(100deg, #8B7CFF, #FF6B9A 55%, #FF9A62); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p.lead { font-size: 19px; color: var(--ink2); max-width: 520px; margin: 0 0 28px; font-weight: 700; }
+.cta { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 10px; padding: 15px 24px; border-radius: 18px; font-weight: 900; font-size: 17px; color: #fff; border: 0; cursor: pointer;
+  background: linear-gradient(135deg, #A99BFF, #8B7CFF 45%, #FF6B9A); box-shadow: 0 14px 30px -12px rgba(139,124,255,.75), inset 0 2px 0 rgba(255,255,255,.35); transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+.btn:hover { transform: translateY(-2px) scale(1.03); text-decoration: none; }
+.btn svg { width: 20px; height: 20px; }
+.ghost { color: var(--ink2); font-weight: 900; }
+.facts { margin-top: 26px; display: flex; gap: 18px; flex-wrap: wrap; color: var(--ink3); font-size: 14px; font-weight: 800; }
+.facts b { color: var(--ink); font-weight: 900; }
+.stage { position: relative; width: min(560px, 92vw); aspect-ratio: 1; margin: 0 auto; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+.petal { position: absolute; left: 0; top: 0; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; border: 0; cursor: pointer; color: #fff;
+  font: 900 13px/1 Nunito, sans-serif; letter-spacing: .01em; text-shadow: 0 1.5px 0 rgba(40,14,60,.28);
+  background: radial-gradient(circle at 34% 28%, rgba(255,255,255,.85) 0 9%, rgba(255,255,255,0) 26%), linear-gradient(150deg, color-mix(in srgb, var(--h) 62%, #fff), var(--h));
+  box-shadow: 0 10px 22px -10px var(--h), inset 0 -6px 12px rgba(60,20,90,.18);
+  transform: translate(var(--x), var(--y)) scale(var(--s, 0)); transition: transform .55s cubic-bezier(.34,1.56,.64,1), opacity .3s; opacity: 0; }
+.petal.on { --s: 1; opacity: 1; }
+.petal:hover { --s: 1.16; }
+.petal span { display: block; animation: bob 3.2s ease-in-out infinite; animation-delay: var(--d); }
+@keyframes bob { 50% { transform: translateY(-3px); } }
+.stage .say { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); width: 100%; text-align: center; }
+.say b { display: block; font-size: 22px; font-weight: 900; }
+.say small { display: block; color: var(--ink2); font-size: 14.5px; font-weight: 700; min-height: 44px; }
+.dropzone { position: fixed; inset: 0; z-index: 50; pointer-events: none; opacity: 0; transition: opacity .25s; display: grid; place-items: end center; padding-bottom: 40px; }
+.dropzone.on { opacity: 1; }
+.dropzone div { background: var(--surface); color: var(--ink); font-weight: 900; padding: 14px 22px; border-radius: 18px; box-shadow: var(--shadow); }
+
+section { padding: 70px 0; }
+h2 { font-size: clamp(30px, 4vw, 44px); line-height: 1.1; margin: 0 0 12px; font-weight: 900; }
+.sub { color: var(--ink2); font-size: 18px; max-width: 640px; margin: 0 0 36px; }
+.center { text-align: center; }
+.center .sub { margin-left: auto; margin-right: auto; }
+
+/* demo video */
+.film { max-width: 980px; margin: 0 auto; border-radius: 28px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--line); background: var(--surface); }
+.film video { display: block; width: 100%; height: auto; }
+
+/* three ways */
+.ways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+@media (max-width: 900px) { .ways { grid-template-columns: 1fr; } .hero { grid-template-columns: 1fr; text-align: center; } .hero p.lead { margin-left: auto; margin-right: auto; } .cta, .facts { justify-content: center; } }
+.way { background: var(--surface); border: 1px solid var(--line); border-radius: 26px; padding: 26px; box-shadow: var(--shadow); }
+.way h3 { margin: 18px 0 6px; font-size: 21px; font-weight: 900; }
+.way p { margin: 0; color: var(--ink2); font-size: 15.5px; }
+.art { height: 150px; border-radius: 18px; background: var(--haze2); position: relative; overflow: hidden; display: grid; place-items: center; }
+.keys { display: flex; gap: 8px; }
+kbd { display: inline-grid; place-items: center; min-width: 46px; height: 46px; padding: 0 12px; border-radius: 12px; background: var(--surface); border: 1.5px solid var(--line); border-bottom-width: 4px; font: 900 16px Nunito, sans-serif; color: var(--ink); animation: press 2.4s ease-in-out infinite; }
+kbd:nth-child(2) { animation-delay: .12s; } kbd:nth-child(3) { animation-delay: .24s; }
+@keyframes press { 0%, 30%, 100% { transform: none; border-bottom-width: 4px; } 12% { transform: translateY(3px); border-bottom-width: 1.5px; } }
+.mini-morph { width: 46px; height: 46px; position: absolute; }
+.carry { position: absolute; left: 18px; top: 26px; width: 58px; height: 40px; border-radius: 8px; background: linear-gradient(135deg, #FFC27A, #FF6B9A); border: 2px solid #fff; box-shadow: 0 8px 16px -8px rgba(0,0,0,.4); animation: carry 4s ease-in-out infinite; }
+@keyframes carry { 0% { transform: translate(0, 0); } 45%, 100% { transform: translate(150px, 50px); } }
+.space { position: absolute; left: 22px; bottom: 16px; animation: tap 4s ease-in-out infinite; }
+.space kbd { min-width: 110px; animation: none; }
+@keyframes tap { 0%, 22%, 30%, 100% { transform: none; } 26% { transform: translateY(3px); } }
+.pop { position: absolute; right: 26px; top: 30px; width: 70px; height: 70px; animation: popin 4s cubic-bezier(.34,1.56,.64,1) infinite; }
+@keyframes popin { 0%, 25% { transform: scale(0); } 35%, 92% { transform: scale(1); } 100% { transform: scale(0); } }
+.menu { width: 230px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: var(--shadow); font-size: 13.5px; font-weight: 800; color: var(--ink2); text-align: left; }
+.menu div { padding: 6px 10px; border-radius: 8px; display: flex; align-items: center; gap: 8px; }
+.menu .hot { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); animation: hot 3s ease-in-out infinite; }
+.menu .hot img { width: 18px; height: 18px; }
+@keyframes hot { 0%, 20% { background: transparent; } 35%, 100% { background: color-mix(in srgb, var(--accent) 18%, transparent); } }
+
+/* garden */
+.search { position: relative; max-width: 520px; margin: 0 auto 34px; }
+.search input { width: 100%; border: 0; background: transparent; color: var(--ink); font: 900 22px Nunito, sans-serif; padding: 10px 6px 12px 40px; outline: none; }
+.search input::placeholder { color: var(--ink3); }
+.search svg.mag { position: absolute; left: 6px; top: 16px; width: 22px; height: 22px; color: var(--ink3); }
+.search svg.wave { position: absolute; left: 0; bottom: -4px; width: 100%; height: 10px; }
+.kinds { display: grid; gap: 26px; }
+.kind h4 { margin: 0 0 10px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); font-weight: 900; }
+.drops { display: flex; flex-wrap: wrap; gap: 10px; }
+.drop { --s: 1; position: relative; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 900 12px Nunito, sans-serif; text-shadow: 0 1.5px 0 rgba(40,14,60,.25); cursor: default;
+  background: radial-gradient(circle at 34% 28%, rgba(255,255,255,.85) 0 9%, rgba(255,255,255,0) 26%), linear-gradient(150deg, color-mix(in srgb, var(--h) 62%, #fff), var(--h));
+  box-shadow: 0 8px 18px -10px var(--h), inset 0 -5px 10px rgba(60,20,90,.16); transition: transform .35s cubic-bezier(.34,1.56,.64,1); }
+.drop:hover { transform: scale(1.14); z-index: 2; }
+.drop.ro { opacity: .7; }
+.drop .tip { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%) scale(.9); opacity: 0; pointer-events: none; background: var(--surface); color: var(--ink); text-shadow: none; white-space: nowrap; padding: 8px 12px; border-radius: 12px; font-size: 13px; font-weight: 800; box-shadow: var(--shadow); border: 1px solid var(--line); transition: .2s; }
+.drop:hover .tip { opacity: 1; transform: translateX(-50%) scale(1); }
+.count { font-size: 15px; color: var(--ink3); margin-top: 26px; text-align: center; }
+
+/* engines */
+.engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.engine { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 20px 22px; }
+.engine b { font-size: 17px; font-weight: 900; display: block; }
+.engine span { color: var(--ink2); font-size: 14.5px; display: block; margin-top: 4px; }
+.engine i { display: inline-block; margin-top: 10px; font-style: normal; font-size: 12px; font-weight: 900; letter-spacing: .04em; padding: 4px 10px; border-radius: 10px; }
+.in { background: color-mix(in srgb, var(--teal) 20%, transparent); color: color-mix(in srgb, var(--teal) 70%, var(--ink)); }
+.once { background: color-mix(in srgb, var(--accent) 20%, transparent); color: color-mix(in srgb, var(--accent) 70%, var(--ink)); }
+.yours { background: color-mix(in srgb, var(--pink) 18%, transparent); color: color-mix(in srgb, var(--pink) 70%, var(--ink)); }
+
+/* screens */
+.shots { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.shots img { width: 100%; border-radius: 22px; border: 1px solid var(--line); box-shadow: var(--shadow); display: block; background: var(--surface); }
+.shots .wide { grid-column: 1 / -1; max-width: 860px; margin: 0 auto; }
+.shots figcaption { color: var(--ink2); font-size: 14.5px; text-align: center; margin-top: 10px; }
+@media (max-width: 760px) { .shots { grid-template-columns: 1fr; } }
+
+/* faq */
+.faq { max-width: 760px; margin: 0 auto; }
+details { border-bottom: 1px solid var(--line); padding: 16px 4px; }
+summary { cursor: pointer; font-size: 18px; font-weight: 900; list-style: none; display: flex; justify-content: space-between; }
+summary::after { content: "+"; color: var(--accent); font-size: 24px; line-height: 1; transition: transform .25s; }
+details[open] summary::after { transform: rotate(45deg); }
+details p { color: var(--ink2); margin: 10px 0 0; }
+
+.final { text-align: center; padding: 90px 0 70px; }
+.final img { width: 120px; animation: hop 2.6s cubic-bezier(.34,1.56,.64,1) infinite; }
+@keyframes hop { 0%, 60%, 100% { transform: none; } 70% { transform: translateY(-16px) scale(1.04, .96); } 80% { transform: translateY(0) scale(1.06, .92); } }
+footer { padding: 30px 0 50px; color: var(--ink3); font-size: 14px; text-align: center; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="glow"><i></i><i></i><i></i></div>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="#"><img src="morph-512.png" alt="">SweaxMorph</a>
+    <nav>
+      <a class="hide-sm" href="#formats" data-i="nav.formats">Formats</a>
+      <a class="hide-sm" href="#how" data-i="nav.how">How it works</a>
+      <a class="hide-sm" href="https://github.com/Sweax3169/sweaxmorph">GitHub</a>
+      <div class="lang"><button data-lang="en">EN</button><button data-lang="tr">TR</button></div>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <h1 data-i="hero.title" data-html>Drop any file on <em>Morph</em>.<br>Pick a format.<br>Done.</h1>
+      <p class="lead" data-i="hero.lead">A file converter for Windows that lives one shortcut away. Images, video, audio, documents, slides, e-books, data, archives, fonts: 126 formats, all offline.</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/Sweax3169/sweaxmorph/releases/latest"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg><span data-i="cta.download">Download for Windows</span></a>
+        <a class="ghost" href="#formats" data-i="cta.formats">See every format →</a>
+      </div>
+      <div class="facts"><span><b>126</b> <span data-i="fact.formats">formats</span></span><span><b>229</b> <span data-i="fact.ext">extensions</span></span><span><b data-i="fact.n">6,500+</b> <span data-i="fact.routes">conversions</span></span><span data-i="fact.free">Free · MIT</span></div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="morph"></canvas>
+      <div class="say"><b id="sayTitle"></b><small id="saySub"></small></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap center">
+      <h2 data-i="film.title">Carry it in, pick a petal</h2>
+      <p class="sub" data-i="film.sub">This is the real app, recorded frame by frame: a 398 KB photo becomes a 35 KB AVIF, 91% smaller.</p>
+      <div class="film"><video id="film" autoplay muted loop playsinline preload="metadata"></video></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="center" data-i="ways.title">Three ways in</h2>
+      <p class="sub center" style="margin-left:auto;margin-right:auto" data-i="ways.sub">Morph is always one move away. No window to find, no menu to dig through.</p>
+      <div class="ways">
+        <div class="way">
+          <div class="art"><div class="keys"><kbd>Win</kbd><kbd>Alt</kbd><kbd>F</kbd></div></div>
+          <h3 data-i="w1.t">The shortcut</h3>
+          <p data-i="w1.p">Opens Morph right under your pointer, from anywhere. Settings records any combination you like.</p>
+        </div>
+        <div class="way">
+          <div class="art"><div class="carry"></div><div class="space"><kbd data-i="space">Space</kbd></div><canvas class="pop" width="140" height="140" data-mini></canvas></div>
+          <h3 data-i="w2.t">Space while dragging</h3>
+          <p data-i="w2.p">Dragging files in Explorer? Tap Space and Morph pops up under them. Drop on Morph, or straight on a petal.</p>
+        </div>
+        <div class="way">
+          <div class="art"><div class="menu"><div data-i="m.open">Open</div><div data-i="m.share">Share</div><div class="hot"><img src="favicon.png" alt=""><span data-i="m.convert">Convert with SweaxMorph</span></div><div data-i="m.send">Send to</div></div></div>
+          <h3 data-i="w3.t">Right-click</h3>
+          <p data-i="w3.p">"Convert with SweaxMorph" on any file, and in Send to. Ten files selected arrive together.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="formats">
+    <div class="wrap">
+      <h2 class="center" data-i="g.title">Everything converts</h2>
+      <p class="sub center" style="margin-left:auto;margin-right:auto" data-i="g.sub">Where no single tool can do it, SweaxMorph plans a route: PowerPoint → PDF → PNG, Pages → DOCX → EPUB.</p>
+      <div class="search">
+        <svg class="mag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.6-4.6"/></svg>
+        <input id="q" autocomplete="off" spellcheck="false">
+        <svg class="wave" viewBox="0 0 520 10" preserveAspectRatio="none"><path id="wave" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="kinds" id="kinds"></div>
+      <p class="count" id="count"></p>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <h2 class="center" data-i="h.title">Small inside, strong engines</h2>
+      <p class="sub center" style="margin-left:auto;margin-right:auto" data-i="h.sub">Most conversions run inside SweaxMorph. Big engines are used where they are best, and nothing is ever uploaded.</p>
+      <div class="engines" id="engines"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="center" data-i="s.title">A closer look</h2>
+      <p class="sub center" style="margin-left:auto;margin-right:auto" data-i="s.sub">Morph takes the colour of what it holds. Typing opens the whole garden of formats.</p>
+      <div class="shots">
+        <figure style="margin:0"><img data-shot="petals" alt=""><figcaption data-i="s.petals">A photo: the formats it can become bloom around Morph</figcaption></figure>
+        <figure style="margin:0"><img data-shot="garden" alt=""><figcaption data-i="s.garden">A video: every target, searchable</figcaption></figure>
+        <figure style="margin:0" class="wide"><img data-shot="settings" alt=""><figcaption data-i="s.settings">Settings: shortcut, Explorer, where results go, quality, engines</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap faq">
+      <h2 class="center" data-i="f.title">Questions</h2>
+      <details><summary data-i="q1">Does it upload my files?</summary><p data-i="a1">No. Everything happens on your PC. The only download is FFmpeg, Pandoc or 7-Zip, once, from their official releases, the first time a conversion needs them.</p></details>
+      <details><summary data-i="q2">Why isn't it in the new Windows 11 menu?</summary><p data-i="a2">That menu only accepts packaged, signed apps. SweaxMorph adds a classic entry, which Windows 11 shows under "Show more options" (Shift + F10). The shortcut and Space-while-dragging are usually faster anyway.</p></details>
+      <details><summary data-i="q3">Do I need Office?</summary><p data-i="a3">No. Office is used when it is there because it is the most faithful. Without it, LibreOffice or Pandoc do the job, and most kinds of files never need either.</p></details>
+      <details><summary data-i="q4">Will it overwrite my files?</summary><p data-i="a4">Never. Results go next to the original as "name (2).ext" when the name is taken, or to the Desktop or a folder you choose.</p></details>
+      <details><summary data-i="q5">Is it free?</summary><p data-i="a5">Yes, and open source under the MIT license.</p></details>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap">
+      <img src="morph-512.png" alt="Morph">
+      <h2 data-i="end.title">Morph is hungry.</h2>
+      <p class="sub" style="margin:0 auto 28px" data-i="end.sub">Windows 10 and 11 · installs for your user, no admin · English and Türkçe</p>
+      <a class="btn" href="https://github.com/Sweax3169/sweaxmorph/releases/latest"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg><span data-i="cta.download">Download for Windows</span></a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span data-i="foot">Made by</span> <a href="https://github.com/Sweax3169">Sweax Studios</a> · <a href="https://github.com/Sweax3169/sweaxmorph">GitHub</a> · MIT</div>
+</footer>
+<div class="dropzone" id="dz"><div data-i="dz">Let go: Morph will show what it can become</div></div>
+
+<script>
+// ── words ─────────────────────────────────────────────────────────────────
+const T = {
+  en: {},
+  tr: {
+    "nav.formats": "Formatlar", "nav.how": "Nasıl çalışır",
+    "hero.title": "Dosyayı <em>Morph</em>'a bırak.<br>Formatı seç.<br>Bitti.",
+    "hero.lead": "Windows için tek kısayol uzağında duran bir dosya dönüştürücü. Görsel, video, ses, belge, sunu, e-kitap, veri, arşiv, yazı tipi: 126 format, hepsi çevrimdışı.",
+    "cta.download": "Windows için indir", "cta.formats": "Tüm formatlar →",
+    "fact.formats": "format", "fact.n": "6.500+", "fact.ext": "uzantı", "fact.routes": "dönüşüm", "fact.free": "Ücretsiz · MIT",
+    "film.title": "Getir, bir yaprak seç", "film.sub": "Bu, kare kare kaydedilmiş gerçek uygulama: 398 KB'lık bir fotoğraf 35 KB'lık bir AVIF'e dönüşüyor, %91 daha küçük.",
+    "ways.title": "Üç giriş yolu", "ways.sub": "Morph hep bir hamle uzakta. Aranacak pencere yok, kazılacak menü yok.",
+    "w1.t": "Kısayol", "w1.p": "Morph'u her yerden, imlecinin tam altında açar. Ayarlar istediğin tuş birleşimini kaydeder.",
+    "space": "Boşluk",
+    "w2.t": "Sürüklerken Boşluk", "w2.p": "Gezgin'de dosya mı sürüklüyorsun? Boşluk'a dokun, Morph tam altında belirsin. Morph'a ya da doğrudan bir yaprağa bırak.",
+    "m.open": "Aç", "m.share": "Paylaş", "m.convert": "SweaxMorph ile dönüştür", "m.send": "Gönder",
+    "w3.t": "Sağ tık", "w3.p": "Her dosyada \"SweaxMorph ile dönüştür\", Gönder menüsünde de. Seçili on dosya birlikte gelir.",
+    "g.title": "Her şey dönüşür", "g.sub": "Tek aracın yetmediği yerde SweaxMorph bir yol planlar: PowerPoint → PDF → PNG, Pages → DOCX → EPUB.",
+    "h.title": "İçi küçük, motorları güçlü", "h.sub": "Dönüşümlerin çoğu SweaxMorph'un içinde yapılır. Büyük motorlar en iyi oldukları yerde kullanılır ve hiçbir şey bir yere yüklenmez.",
+    "s.title": "Yakından bak", "s.sub": "Morph tuttuğu şeyin rengini alır. Yazmaya başlamak bütün format bahçesini açar.",
+    "s.petals": "Bir fotoğraf: dönüşebileceği formatlar Morph'un etrafında açılır", "s.garden": "Bir video: tüm hedefler, aranabilir", "s.settings": "Ayarlar: kısayol, Gezgin, sonuçların yeri, kalite, motorlar",
+    "f.title": "Sorular",
+    "q1": "Dosyalarımı bir yere yükler mi?", "a1": "Hayır. Her şey senin bilgisayarında olur. Tek indirme FFmpeg, Pandoc ya da 7-Zip'tir: bir dönüşüm ilk kez gerektirdiğinde, bir kez, resmi sürümlerinden.",
+    "q2": "Neden yeni Windows 11 menüsünde değil?", "a2": "O menü yalnızca paketlenmiş, imzalı uygulamaları kabul ediyor. SweaxMorph klasik bir giriş ekler; Windows 11 bunu \"Diğer seçenekleri göster\" altında gösterir (Shift + F10). Kısayol ve sürüklerken Boşluk zaten daha hızlı.",
+    "q3": "Office gerekli mi?", "a3": "Hayır. Office varsa en sadık sonucu verdiği için kullanılır. Yoksa LibreOffice ya da Pandoc işi görür; çoğu dosya türü ikisine de hiç ihtiyaç duymaz.",
+    "q4": "Dosyalarımın üzerine yazar mı?", "a4": "Asla. Sonuç asıl dosyanın yanına gider, ad doluysa \"ad (2).uzantı\" olur; istersen Masaüstüne ya da seçtiğin klasöre.",
+    "q5": "Ücretsiz mi?", "a5": "Evet, MIT lisanslı açık kaynak.",
+    "end.title": "Morph acıktı.", "end.sub": "Windows 10 ve 11 · kullanıcına kurulur, yönetici gerekmez · Türkçe ve English",
+    "foot": "Yapımcı", "dz": "Bırak: Morph neye dönüşebileceğini göstersin",
+  },
+};
+const UI = {
+  en: { idle: "Hi, I'm Morph", idleSub: "Drag a file onto this page, or poke me", hungry: "Ooh, give it here!", kinds: "What I can eat", pick: "{0} can become…", pickSub: "Pick a petal", fake: "Converting → {0}", done: "Done!", doneSub: "A pretend run: SweaxMorph does this for real, on your PC.", search: "Search 126 formats", count: "{0} formats · {1} extensions · {2} become something else", unknown: "I don't know .{0} yet", unknownSub: "Tell us on GitHub and Morph will learn it.", ro: "read only", to: "→ {0} formats", ext: "Extensions" },
+  tr: { idle: "Selam, ben Morph", idleSub: "Bu sayfaya bir dosya sürükle ya da bana dokun", hungry: "Ooo, ver bakalım!", kinds: "Neler yiyebilirim", pick: "{0} neye dönüşsün?", pickSub: "Bir yaprak seç", fake: "Dönüştürülüyor → {0}", done: "Hazır!", doneSub: "Bu bir gösteri: SweaxMorph bunu gerçekten, senin bilgisayarında yapar.", search: "126 formatta ara", count: "{0} format · {1} uzantı · {2} tanesi başka bir şeye dönüşür", unknown: ".{0} uzantısını henüz tanımıyorum", unknownSub: "GitHub'da söyle, Morph öğrensin.", ro: "yalnızca okunur", to: "→ {0} format", ext: "Uzantılar" },
+};
+let lang = (localStorage.getItem("sm-lang") || (navigator.language || "en").slice(0, 2)) === "tr" ? "tr" : "en";
+const say = (k, ...a) => UI[lang][k].replace(/\{(\d)\}/g, (_, i) => a[i]);
+document.querySelectorAll("[data-i]").forEach(el => T.en[el.dataset.i] = el.dataset.html !== undefined ? el.innerHTML : el.textContent);
+const dark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i]").forEach(el => {
+    const v = (T[lang][el.dataset.i]) ?? T.en[el.dataset.i];
+    if (el.dataset.html !== undefined) el.innerHTML = v; else el.textContent = v;
+  });
+  document.querySelectorAll(".lang button").forEach(b => b.classList.toggle("on", b.dataset.lang === lang));
+  q.placeholder = say("search");
+  media();
+  buildGarden();
+  buildEngines();
+  morphUi.refresh();
+}
+document.querySelectorAll(".lang button").forEach(b => b.onclick = () => { lang = b.dataset.lang; localStorage.setItem("sm-lang", lang); applyLang(); });
+function media() {
+  const t = dark() ? "dark" : "light";
+  const film = document.getElementById("film");
+  const src = `media/demo-${t}-${lang}.mp4`;
+  if (!film.src.endsWith(src)) { film.src = src; film.play().catch(() => {}); }
+  document.querySelectorAll("[data-shot]").forEach(img => img.src = `media/${img.dataset.shot}-${t}-${lang}.png`);
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { media(); });
+
+// ── Morph, the same creature as in the app, drawn on a canvas ────────────────
+const N = 18;
+const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const css = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+const S = v => ({ x: v, v: 0, t: v });
+function stepS(s, dt, k, z) { const c = 2 * z * Math.sqrt(k), h = dt / 2; for (let i = 0; i < 2; i++) { s.v += ((s.t - s.x) * k - s.v * c) * h; s.x += s.v * h; } }
+const WHITE = [255, 255, 255];
+
+class Morph {
+  constructor(cv, R) {
+    this.cv = cv; this.ctx = cv.getContext("2d"); this.R0 = R;
+    this.d = new Float64Array(N); this.dv = new Float64Array(N); this.t = 0; this.parts = [];
+    this.s = { sq: S(0), lift: S(0), eye: S(1), happy: S(0), mo: S(0), mc: S(.6), mw: S(.22), reach: S(0), fill: S(0), lx: S(0), ly: S(0), sweat: S(0), hover: S(0) };
+    this.c1 = hex("#CDB8FF"); this.c2 = hex("#FF8FC1"); this.t1 = this.c1; this.t2 = this.c2; this.liq = hex("#8B7CFF"); this.liqT = this.liq;
+    this.mood = "idle"; this.nextBlink = 2; this.blinkUntil = -1; this.reachA = 0; this.bubble = 0; this.spark = 0;
+  }
+  setMood(m) {
+    if (this.mood === m) return; this.mood = m; const s = this.s;
+    const face = (o, c, w, e) => { s.mo.t = o; s.mc.t = c; s.mw.t = w; s.eye.t = e; };
+    if (m === "idle") face(0, .6, .22, 1);
+    if (m === "hungry") { face(.9, .25, .3, 1.15); s.sq.v -= 1.2; }
+    if (m === "full") face(0, .95, .26, 1);
+    if (m === "working") face(.28, 0, .15, .78);
+    if (m === "happy") { face(.75, 1, .34, 1); this.jump(1); this.sparkles(14); }
+    if (m === "sad") face(0, -.75, .2, .9);
+    s.happy.t = m === "happy" ? 1 : 0; s.sweat.t = m === "sad" ? 1 : 0;
+  }
+  tint(h) { const c = hex(h); this.t1 = mix(c, WHITE, .42); this.t2 = c; }
+  tintDefault() { this.t1 = hex("#CDB8FF"); this.t2 = hex("#FF8FC1"); }
+  get size() { return this.cv.width / devicePixelRatio; }
+  get center() { return [this.size / 2, this.size / 2 + this.R * .11 - this.size * (this.R0 > 200 ? 0 : .07)]; }
+  get R() { return this.R0 * this.size / 560; }
+  look(px, py) { const [cx, cy] = this.center, dx = px - cx, dy = py - cy, len = Math.hypot(dx, dy), k = Math.min(1, len / 220) / Math.max(1, len); this.s.lx.t = dx * k; this.s.ly.t = dy * k; }
+  reach(px, py, str) { const [cx, cy] = this.center; this.reachA = Math.atan2(py - cy, px - cx); this.s.reach.t = Math.max(0, Math.min(1, str)); }
+  swallow() { this.s.sq.v += 9; this.s.mo.x = 1; this.s.mo.v = -6; for (let i = 0; i < N; i++) this.dv[i] += (Math.random() - .3) * 2.2; const [cx, cy] = this.center; this.parts.push({ type: 1, x: cx, y: cy, life: 0, max: .7, size: this.R, color: this.t2 }); }
+  poke(a, str) { for (let i = 0; i < N; i++) { const ai = 2 * Math.PI * i / N - Math.PI / 2, near = Math.max(0, Math.cos(ai - a)); this.dv[i] -= str * near * near * 1.6; } }
+  jump(str) { this.s.lift.v -= str * 320; this.s.sq.v += 5 * str; }
+  sparkles(n) { const [cx, cy] = this.center; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 90 + Math.random() * 140; this.parts.push({ type: 0, x: cx + Math.cos(a) * this.R * .8, y: cy + Math.sin(a) * this.R * .8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, life: 0, max: .7 + Math.random() * .5, size: 5 + Math.random() * 6, color: i % 3 === 0 ? WHITE : mix(this.t2, WHITE, .3) }); } }
+  step(dt) {
+    const s = this.s; this.t += dt;
+    stepS(s.sq, dt, 260, .32); stepS(s.lift, dt, 140, .45); stepS(s.eye, dt, 900, .7); stepS(s.happy, dt, 200, .8);
+    stepS(s.mo, dt, 340, .55); stepS(s.mc, dt, 240, .7); stepS(s.mw, dt, 240, .7); stepS(s.reach, dt, 120, .6); stepS(s.fill, dt, 40, .9);
+    stepS(s.lx, dt, 160, .75); stepS(s.ly, dt, 160, .75); stepS(s.sweat, dt, 120, .8); stepS(s.hover, dt, 200, .6);
+    for (let i = 0; i < N; i++) { const a = (i + N - 1) % N, b = (i + 1) % N; this.dv[i] += (-this.d[i] * 180 + (this.d[a] + this.d[b] - 2 * this.d[i]) * 260 - this.dv[i] * 7.5) * dt; }
+    for (let i = 0; i < N; i++) this.d[i] += this.dv[i] * dt;
+    const k = 1 - Math.exp(-dt * 5); this.c1 = mix(this.c1, this.t1, k); this.c2 = mix(this.c2, this.t2, k); this.liq = mix(this.liq, this.liqT, k);
+    if (this.t > this.nextBlink && this.mood !== "happy" && this.mood !== "working") { this.blinkUntil = this.t + .11; this.nextBlink = this.t + 2.2 + Math.random() * 3.8; if (Math.random() < .18) this.nextBlink = this.t + .25; }
+    if (this.t < this.blinkUntil) s.eye.x += (.05 - s.eye.x) * Math.min(1, dt * 40);
+    const [cx, cy] = this.center;
+    if (s.fill.x > .04 && (this.bubble += dt) > .16) { this.bubble = 0; this.parts.push({ type: 2, x: cx + (Math.random() - .5) * this.R * 1.1, y: cy + this.R * .85, vx: 0, vy: -40 - Math.random() * 50, life: 0, max: 1.6, size: 2 + Math.random() * 4 }); }
+    if (this.mood === "happy" && (this.spark += dt) > .5) { this.spark = 0; this.sparkles(2); }
+    for (let i = this.parts.length - 1; i >= 0; i--) {
+      const p = this.parts[i]; p.life += dt; if (p.life >= p.max) { this.parts.splice(i, 1); continue; }
+      p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt;
+      if (p.type === 0) { p.vx *= Math.exp(-dt * 3); p.vy = p.vy * Math.exp(-dt * 3) + 120 * dt; }
+      if (p.type === 2) p.x += Math.sin(this.t * 6 + p.size) * 10 * dt;
+    }
+  }
+  path(pts) {
+    const g = this.ctx; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 0; i < N; i++) { const p0 = pts[(i + N - 1) % N], p1 = pts[i], p2 = pts[(i + 1) % N], p3 = pts[(i + 2) % N]; g.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6, p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]); }
+    g.closePath();
+  }
+  radial(x, y, rx, ry, stops) {
+    const g = this.ctx; g.save(); g.translate(x, y); g.scale(rx, ry);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1); stops.forEach(([o, c]) => gr.addColorStop(o, c)); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.fill(); g.restore();
+  }
+  draw() {
+    const g = this.ctx, s = this.s, dpr = devicePixelRatio, W = this.size;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, W);
+    const R = this.R * (1 + s.hover.x * .04), sq = Math.max(-.22, Math.min(.28, s.sq.x * .04));
+    const bob = Math.sin(this.t * 1.7) * 3 * (this.mood === "working" ? .3 : 1);
+    const [c0x, c0y] = this.center, lift = Math.min(0, s.lift.x * .01) * 60, cx = c0x, cy = c0y + bob + lift + R * sq * .9;
+    const air = Math.max(0, Math.min(1, -lift / 60));
+    this.radial(c0x, c0y + R * 1.02, R * (.95 + sq) * (1 - air * .3), R * .17 * (1 - air * .3), [[0, `rgba(20,10,40,${.28 * (1 - air * .6)})`], [1, "rgba(20,10,40,0)"]]);
+    const pts = [];
+    for (let i = 0; i < N; i++) {
+      const a = 2 * Math.PI * i / N - Math.PI / 2, br = .022 * Math.sin(this.t * 1.6 + i * .9) + .012 * Math.sin(this.t * 2.9 + i * 2.3);
+      const tw = Math.max(0, Math.cos(a - this.reachA)); let r = R * (1 + br + this.d[i] * .12 + s.reach.x * .32 * tw * tw * tw);
+      r *= 1 - .07 * Math.pow(Math.max(0, Math.sin(a)), 4); pts.push([cx + Math.cos(a) * r * (1 + sq), cy + Math.sin(a) * r * (1 - sq)]);
+    }
+    this.path(pts);
+    const lg = g.createLinearGradient(cx - R * .6, cy - R, cx + R * .6, cy + R); lg.addColorStop(0, css(this.c1)); lg.addColorStop(1, css(this.c2)); g.fillStyle = lg; g.fill();
+    g.save(); this.path(pts); g.clip();
+    if (s.fill.x > .003) {
+      const top = cy - R * (1 - sq), bot = cy + R * (1 - sq), lvl = bot - (bot - top + 6) * Math.min(1, s.fill.x);
+      g.beginPath(); g.moveTo(cx - R * 1.6, bot + 20);
+      for (let x = cx - R * 1.6; x <= cx + R * 1.6; x += 6) g.lineTo(x, lvl + Math.sin(x * .07 + this.t * 4.2) * 3.2 + Math.sin(x * .031 - this.t * 2.3) * 2.4);
+      g.lineTo(cx + R * 1.6, bot + 20); g.closePath();
+      const wg = g.createLinearGradient(0, lvl, 0, bot); wg.addColorStop(0, css(mix(this.liq, WHITE, .25), .92)); wg.addColorStop(1, css(this.liq, .92)); g.fillStyle = wg; g.fill();
+      g.strokeStyle = "rgba(255,255,255,.6)"; g.lineWidth = 1.2; this.parts.filter(p => p.type === 2 && p.y > lvl).forEach(p => { g.beginPath(); g.arc(p.x, p.y, p.size, 0, Math.PI * 2); g.stroke(); });
+    }
+    const dk = mix(this.c2, [40, 20, 70], .45);
+    this.radial(cx - R * .1, cy - R * .16 + 0, R * 1.24 * (1 + sq), R * 1.24 * (1 - sq), [[0, "rgba(0,0,0,0)"], [.62, "rgba(0,0,0,0)"], [1, css(dk, .27)]]);
+    this.radial(cx - R * .32, cy - R * .44, R * .84, R * .72, [[0, "rgba(255,255,255,.47)"], [1, "rgba(255,255,255,0)"]]);
+    g.restore();
+    g.save(); g.translate(cx - R * .42, cy - R * .5); g.rotate(-28 * Math.PI / 180); this.radial(0, 0, R * .27, R * .13, [[0, "rgba(255,255,255,.84)"], [1, "rgba(255,255,255,0)"]]); g.restore();
+    g.fillStyle = "rgba(255,255,255,.78)"; g.beginPath(); g.ellipse(cx - R * .14, cy - R * .72, R * .045, R * .04, 0, 0, Math.PI * 2); g.fill();
+    this.face(cx, cy, R, sq);
+    for (const p of this.parts) {
+      const life = p.life / p.max;
+      if (p.type === 0) this.star(p.x, p.y, p.size * (1 - life * .6), css(p.color, 1 - life), p.life * 4);
+      if (p.type === 1) { const r = p.size * (1 + life * .9); g.strokeStyle = css(p.color, .63 * (1 - life)); g.lineWidth = 3 * (1 - life) + .5; g.beginPath(); g.ellipse(p.x, p.y + bob, r * 1.08, r, 0, 0, Math.PI * 2); g.stroke(); }
+    }
+  }
+  face(cx, cy, R, sq) {
+    const g = this.ctx, s = this.s, ink = "#2B2140", lx = s.lx.x * R * .16, ly = s.ly.x * R * .12, fx = cx + lx * .6, fy = cy + ly * .6 + R * sq * .3, happy = Math.max(0, Math.min(1, s.happy.x));
+    const ex = R * .31 * (1 + sq * .6), ey = -R * .08, rx = R * .092, ry = R * .118 * Math.max(.04, Math.min(1.3, s.eye.x));
+    for (const side of [-1, 1]) {
+      const x = fx + side * ex + lx * .5, y = fy + ey + ly * .5;
+      if (happy > .5) { g.strokeStyle = ink; g.lineWidth = rx * .62; g.lineCap = "round"; g.beginPath(); g.moveTo(x - rx * 1.15, y + ry * .25); g.quadraticCurveTo(x, y - ry * 1.35, x + rx * 1.15, y + ry * .25); g.stroke(); }
+      else {
+        g.fillStyle = ink; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill();
+        if (ry > rx * .5) { g.fillStyle = "rgba(255,255,255,.94)"; g.beginPath(); g.arc(x + rx * .34 + lx * .15, y - ry * .36, rx * .38, 0, Math.PI * 2); g.fill(); g.beginPath(); g.arc(x - rx * .32, y + ry * .38, rx * .17, 0, Math.PI * 2); g.fill(); }
+      }
+    }
+    this.radial(fx - R * .5, fy + R * .1, R * .16, R * .1, [[0, "rgba(255,110,160,.59)"], [1, "rgba(255,110,160,0)"]]);
+    this.radial(fx + R * .5, fy + R * .1, R * .16, R * .1, [[0, "rgba(255,110,160,.59)"], [1, "rgba(255,110,160,0)"]]);
+    const open = Math.max(0, Math.min(1.2, s.mo.x)), curve = s.mc.x, wide = R * Math.max(.08, Math.min(.45, s.mw.x)), mx = fx, my = fy + R * .16;
+    if (open < .1) { g.strokeStyle = ink; g.lineWidth = R * .045; g.lineCap = "round"; g.beginPath(); g.moveTo(mx - wide / 2, my - curve * R * .03); g.quadraticCurveTo(mx, my + curve * R * .11, mx + wide / 2, my - curve * R * .03); g.stroke(); }
+    else {
+      const h = R * .2 * open, top = my - h * .35 - Math.max(0, curve) * R * .01;
+      g.beginPath(); g.moveTo(mx - wide / 2, top); g.quadraticCurveTo(mx, top + Math.min(0, -curve) * h * .3 - h * .08, mx + wide / 2, top);
+      g.bezierCurveTo(mx + wide / 2, top + h * (.9 + curve * .2), mx - wide / 2, top + h * (.9 + curve * .2), mx - wide / 2, top); g.closePath();
+      g.fillStyle = ink; g.fill(); g.save(); g.clip(); g.fillStyle = "#FF7FA6"; g.beginPath(); g.ellipse(mx, my - h * .35 + h * .95, wide * .32, h * .38, 0, 0, Math.PI * 2); g.fill(); g.restore();
+    }
+    if (s.sweat.x > .05) { const dx = cx + R * .62, dy = cy - R * .38 + Math.sin(this.t * 3) * 2, k = R * .09 * s.sweat.x; g.fillStyle = "#9BD3FF"; g.beginPath(); g.moveTo(dx, dy - k * 1.8); g.bezierCurveTo(dx + k * 1.2, dy - k * .2, dx + k, dy + k, dx, dy + k); g.bezierCurveTo(dx - k, dy + k, dx - k * 1.2, dy - k * .2, dx, dy - k * 1.8); g.fill(); }
+  }
+  star(x, y, r, color, spin) { const g = this.ctx; g.fillStyle = color; g.beginPath(); for (let i = 0; i < 8; i++) { const a = spin + i * Math.PI / 4, rr = i % 2 === 0 ? r : r * .32; i ? g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr) : g.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.closePath(); g.fill(); }
+}
+
+// ── the hero stage ──────────────────────────────────────────────────────────
+let CAT = { formats: [] };
+const KIND_HUE = { Image: "#FF6B9A", Video: "#8B7CFF", Audio: "#2EC4B6", Document: "#4C8DFF", Sheet: "#3CCB7F", Slides: "#FF8A4C", Pdf: "#FF5A5F", Ebook: "#E879F9", Data: "#A3C93A", Archive: "#C08B5C", Subtitle: "#8E9AAF", Font: "#F4B740" };
+const KIND = { en: { Image: "Images", Video: "Video", Audio: "Audio", Document: "Docs", Sheet: "Sheets", Slides: "Slides", Pdf: "PDF", Ebook: "E-books", Data: "Data", Archive: "Archives", Subtitle: "Subtitles", Font: "Fonts" },
+               tr: { Image: "Görsel", Video: "Video", Audio: "Ses", Document: "Belge", Sheet: "Tablo", Slides: "Sunu", Pdf: "PDF", Ebook: "E-kitap", Data: "Veri", Archive: "Arşiv", Subtitle: "Altyazı", Font: "Yazı tipi" } };
+const FAV = { Image: ["png", "jpg", "webp", "pdf", "avif", "ico", "gif"], Video: ["mp4", "mp3", "gif", "webm", "mov", "mkv", "m4a"], Audio: ["mp3", "wav", "flac", "m4a", "ogg", "opus", "mp4"],
+  Document: ["pdf", "docx", "txt", "md", "html", "odt", "epub"], Sheet: ["xlsx", "csv", "pdf", "json", "ods", "xls", "html"], Slides: ["pdf", "pptx", "png", "mp4", "jpg", "odp"], Pdf: ["docx", "png", "jpg", "txt", "epub"],
+  Ebook: ["epub", "pdf", "docx", "mobi", "azw3", "txt"], Data: ["json", "yaml", "csv", "xlsx", "xml", "toml"], Archive: ["zip", "7z", "tgz", "tar"], Subtitle: ["srt", "vtt", "ass", "lrc", "ttml"], Font: ["woff2", "woff", "ttf", "otf"] };
+const SAMPLE = { Image: "sunset.heic", Video: "trip.mov", Audio: "song.wav", Document: "notes.docx", Sheet: "budget.xlsx", Slides: "deck.pptx", Pdf: "paper.pdf", Ebook: "novel.epub", Data: "config.json", Archive: "photos.rar", Subtitle: "film.srt", Font: "brand.ttf" };
+
+const stage = document.getElementById("stage"), cv = document.getElementById("morph");
+const morph = new Morph(cv, 104);
+const sayTitle = document.getElementById("sayTitle"), saySub = document.getElementById("saySub");
+let petals = [], state = "idle", held = null, timer = 0;
+
+function fit() {
+  const w = stage.clientWidth, dpr = devicePixelRatio; cv.width = w * dpr; cv.height = w * dpr;
+  minis.forEach(m => { const s = m.cv.clientWidth || 70; m.cv.width = s * dpr; m.cv.height = s * dpr; });
+  place();
+}
+function place() {
+  const w = stage.clientWidth, [cx, cy] = morph.center, ring = w * .35;
+  petals.forEach((p, i) => { const a = -Math.PI / 2 + 2 * Math.PI * i / petals.length; p.style.setProperty("--x", `${cx + Math.cos(a) * ring}px`); p.style.setProperty("--y", `${cy + Math.sin(a) * ring}px`); });
+}
+function setPetals(items) {
+  petals.forEach(p => { p.classList.remove("on"); setTimeout(() => p.remove(), 400); });
+  petals = items.map((it, i) => {
+    const b = document.createElement("button"); b.className = "petal"; b.style.setProperty("--h", it.hue); b.style.setProperty("--d", `${-i * .4}s`);
+    b.innerHTML = `<span>${it.label}</span>`; b.title = it.tip || ""; b.onclick = e => { e.stopPropagation(); it.go(); };
+    b.onmouseenter = () => { saySub.textContent = it.tip || ""; const r = b.getBoundingClientRect(), s = cv.getBoundingClientRect(); morph.look(r.left + 32 - s.left, r.top + 32 - s.top); hot = b; };
+    b.onmouseleave = () => { hot = null; saySub.textContent = state === "pick" ? say("pickSub") : say("idleSub"); };
+    b.style.fontSize = it.label.length > 5 ? "11px" : "13px";
+    stage.appendChild(b); setTimeout(() => b.classList.add("on"), 30 + i * 35); return b;
+  });
+  place();
+}
+let hot = null;
+function idle() {
+  state = "idle"; held = null; morph.setMood("idle"); morph.tintDefault(); morph.s.fill.t = 0;
+  sayTitle.textContent = say("idle"); saySub.textContent = say("idleSub");
+  setPetals(Object.keys(KIND_HUE).map(k => ({ label: KIND[lang][k], hue: KIND_HUE[k], tip: CAT.formats.filter(f => f.kind === k).map(f => f.label).join(" · "), go: () => hold(SAMPLE[k]) })));
+}
+function hold(name) {
+  const ext = name.split(".").pop().toLowerCase(), f = byExt(ext);
+  morph.swallow(); morph.jump(.4);
+  if (!f) { state = "pick"; morph.setMood("sad"); morph.tint("#9AA4C7"); sayTitle.textContent = say("unknown", ext); saySub.textContent = say("unknownSub"); setPetals([]); clearTimeout(timer); timer = setTimeout(idle, 4200); return; }
+  state = "pick"; held = f; morph.setMood("full"); morph.tint(f.hue);
+  sayTitle.textContent = say("pick", name); saySub.textContent = say("pickSub");
+  const targets = (FAV[f.kind] || []).filter(t => t !== f.id).map(t => CAT.formats.find(x => x.id === t)).filter(Boolean);
+  setPetals(targets.map(t => ({ label: t.label, hue: KIND_HUE[t.kind], tip: t[lang], go: () => pretend(t) })));
+}
+function pretend(t) {
+  state = "work"; morph.setMood("working"); morph.t1 = hex("#F4F0FB"); morph.t2 = hex("#D6CCEC"); morph.liqT = hex(KIND_HUE[t.kind]); morph.s.fill.t = .05;
+  petals.forEach(p => p.classList.remove("on"));
+  sayTitle.textContent = say("fake", t.label); saySub.textContent = "";
+  let v = .05; const iv = setInterval(() => { v = Math.min(1, v + .12 + Math.random() * .1); morph.s.fill.t = v; if (v >= 1) { clearInterval(iv); finish(t); } }, 220);
+}
+function finish(t) {
+  state = "done"; morph.setMood("happy"); sayTitle.textContent = say("done"); saySub.textContent = say("doneSub");
+  setTimeout(() => { morph.tint(KIND_HUE[t.kind]); morph.s.fill.t = 0; }, 650);
+  clearTimeout(timer); timer = setTimeout(idle, 5200);
+}
+const byExt = e => CAT.formats.find(f => f.ext.includes("." + e));
+
+// pointer: Morph watches you anywhere on the page
+addEventListener("pointermove", e => { const r = cv.getBoundingClientRect(); if (!hot) morph.look(e.clientX - r.left, e.clientY - r.top);
+  const [cx, cy] = morph.center, d = Math.hypot(e.clientX - r.left - cx, e.clientY - r.top - cy); morph.s.hover.t = d < morph.R ? 1 : 0; });
+cv.addEventListener("click", e => { const r = cv.getBoundingClientRect(), [cx, cy] = morph.center; if (Math.hypot(e.clientX - r.left - cx, e.clientY - r.top - cy) > morph.R * 1.2) return;
+  morph.poke(-Math.PI / 2 + (Math.random() - .5), 1.4); morph.jump(.6); morph.sparkles(8); if (state === "done" || state === "pick") { clearTimeout(timer); idle(); } });
+
+// a real file dragged onto the page: Morph only reads its name, nothing is uploaded or opened
+const dz = document.getElementById("dz"); let depth = 0;
+addEventListener("dragenter", e => { if (![...e.dataTransfer.types].includes("Files")) return; e.preventDefault(); depth++; dz.classList.add("on"); morph.setMood("hungry"); });
+addEventListener("dragover", e => { if (![...e.dataTransfer.types].includes("Files")) return; e.preventDefault(); const r = cv.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top; morph.look(x, y);
+  const [cx, cy] = morph.center; morph.reach(x, y, 1 - (Math.hypot(x - cx, y - cy) - 70) / 400); sayTitle.textContent = say("hungry"); });
+addEventListener("dragleave", e => { if (--depth <= 0) { depth = 0; dz.classList.remove("on"); morph.reach(0, 0, 0); if (state === "idle") { morph.setMood("idle"); sayTitle.textContent = say("idle"); } } });
+addEventListener("drop", e => { if (![...e.dataTransfer.types].includes("Files")) return; e.preventDefault(); depth = 0; dz.classList.remove("on"); morph.reach(0, 0, 0);
+  const f = e.dataTransfer.files[0]; if (f) { clearTimeout(timer); stage.scrollIntoView({ behavior: "smooth", block: "center" }); hold(f.name); } });
+
+// the little Morph in "Space while dragging"
+const minis = [...document.querySelectorAll("[data-mini]")].map(c => new Morph(c, 225));
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(1 / 30, (now - last) / 1000); last = now;
+  morph.step(dt); morph.draw();
+  minis.forEach(m => { m.step(dt); m.draw(); });
+  requestAnimationFrame(frame);
+}
+addEventListener("resize", fit);
+
+// ── the garden of formats ───────────────────────────────────────────────────
+const q = document.getElementById("q"), kinds = document.getElementById("kinds");
+function buildGarden() {
+  kinds.innerHTML = "";
+  const groups = {};
+  CAT.formats.forEach(f => (groups[f.kind] ??= []).push(f));
+  for (const [k, list] of Object.entries(groups)) {
+    const div = document.createElement("div"); div.className = "kind"; div.dataset.kind = k;
+    div.innerHTML = `<h4>${KIND[lang][k] || k}</h4><div class="drops"></div>`;
+    const drops = div.querySelector(".drops");
+    list.forEach(f => {
+      const d = document.createElement("div"); d.className = "drop" + (f.write ? "" : " ro"); d.style.setProperty("--h", f.hue);
+      d.dataset.q = [f.label, f.id, f.en, f.tr, ...f.ext, KIND.en[k], KIND.tr[k]].join(" ").toLocaleLowerCase(lang);
+      d.style.fontSize = f.label.length > 5 ? "10px" : "12px";
+      d.innerHTML = `${f.label}<span class="tip">${f[lang]} · ${say("to", f.to)}${f.write ? "" : " · " + say("ro")}<br><span style="color:var(--ink3)">${f.ext.join(" ")}</span></span>`;
+      drops.appendChild(d);
+    });
+    kinds.appendChild(div);
+  }
+  const exts = CAT.formats.reduce((n, f) => n + f.ext.length, 0);
+  document.getElementById("count").textContent = say("count", CAT.formats.length, exts, CAT.formats.filter(f => f.to > 0).length);
+  filter();
+}
+function filter() {
+  const v = q.value.trim().toLocaleLowerCase(lang);
+  kinds.querySelectorAll(".kind").forEach(k => { let any = false; k.querySelectorAll(".drop").forEach(d => { const hit = !v || d.dataset.q.includes(v); d.style.display = hit ? "" : "none"; any ||= hit; }); k.style.display = any ? "" : "none"; });
+}
+q.addEventListener("input", filter);
+const wave = document.getElementById("wave");
+(function flow(t) { let d = "M0 5"; for (let x = 4; x <= 520; x += 4) d += ` L${x} ${5 + Math.sin(x * .07 - t / 200) * 2.4}`; wave.setAttribute("d", d); requestAnimationFrame(flow); })(0);
+
+// ── engines ─────────────────────────────────────────────────────────────────
+const ENG = [
+  ["Magick.NET", "in", { en: "HEIC, AVIF, RAW, PSD, SVG, ICO… every still image", tr: "HEIC, AVIF, RAW, PSD, SVG, ICO… her durağan görsel" }],
+  ["Windows", "in", { en: "PDF pages to pictures, text out of scans (OCR)", tr: "PDF sayfalarından görsele, taramalardan metne (OCR)" }],
+  ["SweaxMorph", "in", { en: "JSON ⇄ YAML ⇄ TOML ⇄ XML ⇄ CSV ⇄ Excel, archives, web fonts", tr: "JSON ⇄ YAML ⇄ TOML ⇄ XML ⇄ CSV ⇄ Excel, arşivler, web yazı tipleri" }],
+  ["FFmpeg", "once", { en: "Video, audio and subtitles. Streams copied when they can be", tr: "Video, ses ve altyazı. Mümkünse akışlar kopyalanır" }],
+  ["Pandoc", "once", { en: "Markdown, HTML, EPUB, LaTeX, Jupyter, wiki formats", tr: "Markdown, HTML, EPUB, LaTeX, Jupyter, wiki biçimleri" }],
+  ["7-Zip", "once", { en: "Creating .7z archives", tr: ".7z arşivleri oluşturma" }],
+  ["Microsoft Office", "yours", { en: "Word, Excel, PowerPoint. Slides to pictures and MP4", tr: "Word, Excel, PowerPoint. Slaytlardan görsele ve MP4'e" }],
+  ["LibreOffice", "yours", { en: "Pages, Numbers, Keynote, Visio, Publisher, PDF → Word", tr: "Pages, Numbers, Keynote, Visio, Publisher, PDF → Word" }],
+  ["Calibre", "yours", { en: "Kindle MOBI and AZW3", tr: "Kindle MOBI ve AZW3" }],
+];
+const TAG = { en: { in: "BUILT IN", once: "DOWNLOADED ONCE", yours: "IF INSTALLED" }, tr: { in: "İÇİNDE", once: "BİR KEZ İNER", yours: "KURULUYSA" } };
+function buildEngines() { document.getElementById("engines").innerHTML = ENG.map(([n, k, d]) => `<div class="engine"><b>${n}</b><span>${d[lang]}</span><i class="${k}">${TAG[lang][k]}</i></div>`).join(""); }
+
+const morphUi = { refresh() { if (state === "idle" || !CAT.formats.length) idle(); else if (held) { sayTitle.textContent = say("pick", SAMPLE[held.kind] || held.label); } } };
+
+fetch("formats.json").then(r => r.json()).then(c => { CAT = c; applyLang(); }).catch(() => applyLang());
+fit();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

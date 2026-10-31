@@ -1,0 +1,73 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build
+        run: dotnet build src/SweaxMorph -c Release
+
+      # Not compressed on purpose: an uncompressed bundle is memory-mapped from disk.
+      - name: Publish (self-contained single file)
+        run: >
+          dotnet publish src/SweaxMorph -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishReadyToRun=false -o out/full
+
+      - name: Publish (framework-dependent single file)
+        run: >
+          dotnet publish src/SweaxMorph -c Release -r win-x64 --self-contained false
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishReadyToRun=false -o out/lite
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist, pkg/SweaxMorph -Force | Out-Null
+          Copy-Item out/full/SweaxMorph.exe pkg/SweaxMorph/SweaxMorph.exe
+          @(
+            "SweaxMorph - drop any file, pick a format",
+            "",
+            "Run SweaxMorph.exe. It installs itself to %LOCALAPPDATA%\Programs\SweaxMorph,",
+            "starts with Windows, and adds 'Convert with SweaxMorph' to the right-click menu.",
+            "Press Win + Alt + F and drop a file on Morph.",
+            "",
+            "Portable mode: create an empty folder named 'sweaxmorph-data' next to SweaxMorph.exe",
+            "before the first start. Settings and engines then live in that folder and nothing is installed.",
+            "",
+            "https://github.com/Sweax3169/sweaxmorph"
+          ) | Set-Content pkg/SweaxMorph/README.txt
+          Compress-Archive pkg/SweaxMorph dist/SweaxMorph-win-x64.zip
+          Copy-Item out/lite/SweaxMorph.exe dist/SweaxMorph-lite.exe
+          Get-ChildItem dist -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } |
+            Set-Content dist/SHA256SUMS.txt
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SweaxMorph-${{ github.sha }}
+          path: dist/*
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SweaxMorph ${{ github.ref_name }}
+          body_path: docs/release-notes/${{ github.ref_name }}.md
+          files: dist/*
