@@ -1,13 +1,9 @@
 <div align="center">
 
-<img src="assets/brand/morph-512.png" width="148" alt="SweaxMorph maskotu Morph">
-
-# SweaxMorph
-
-**Dosyayı Morph'a bırak. Formatı seç. Bitti.**
-
-Windows 10 ve 11 için tek kısayol uzağında duran bir dosya dönüştürücü. <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd>'ye bas,
-Gezgin'de dosya sürüklerken <kbd>Boşluk</kbd>'a dokun ya da dosyaya sağ tıkla.<br>126 format · 229 dosya uzantısı · 6.500'den fazla dönüşüm · çevrimdışı
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/art/banner-dark-tr.svg">
+  <img src="docs/art/banner-light-tr.svg" width="100%" alt="SweaxMorph: dosyayı Morph’a bırak, formatı seç">
+</picture>
 
 [![İndir](https://img.shields.io/github/v/release/Sweax3169/sweaxmorph?label=indir&color=8B7CFF&style=for-the-badge)](https://github.com/Sweax3169/sweaxmorph/releases/latest)
 [![Windows 10 · 11](https://img.shields.io/badge/Windows-10%20%C2%B7%2011-FF6B9A?style=for-the-badge)](#kurulum)
@@ -72,6 +68,21 @@ Pages → DOCX → EPUB gibi.
 <sub>\* yalnızca okunur: SweaxMorph bunları açıp başka bir şeye dönüştürür.</sub>
 
 ### Küçük ama önemli şeyler
+
+<table>
+<tr>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-shrink-dark-tr.svg"><img src="docs/art/card-shrink-light-tr.svg" width="100%" alt="shrink"></picture></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-combine-dark-tr.svg"><img src="docs/art/card-combine-light-tr.svg" width="100%" alt="combine"></picture></td>
+</tr>
+<tr>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-route-dark-tr.svg"><img src="docs/art/card-route-light-tr.svg" width="100%" alt="route"></picture></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-safe-dark-tr.svg"><img src="docs/art/card-safe-light-tr.svg" width="100%" alt="safe"></picture></td>
+</tr>
+<tr>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-ocr-dark-tr.svg"><img src="docs/art/card-ocr-light-tr.svg" width="100%" alt="ocr"></picture></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-fast-dark-tr.svg"><img src="docs/art/card-fast-light-tr.svg" width="100%" alt="fast"></picture></td>
+</tr>
+</table>
 
 - **Küçült.** Her fotoğraf, video ve şarkıya bir de "Küçült" yaprağı çıkar: aynı format, çok daha küçük.
 - **Birleştir.** Birden çok dosya bırakıp *Tek dosyada birleştir*'i işaretle: fotoğraflar → tek PDF ya da hareketli GIF, PDF'ler → tek PDF, klipler → tek video, her şey → tek ZIP.

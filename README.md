@@ -1,13 +1,9 @@
 <div align="center">
 
-<img src="assets/brand/morph-512.png" width="148" alt="Morph, the SweaxMorph mascot">
-
-# SweaxMorph
-
-**Drop any file on Morph. Pick a format. Done.**
-
-A file converter for Windows 10 and 11 that lives one shortcut away. Press <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd>,
-tap <kbd>Space</kbd> while dragging files in Explorer, or right-click a file.<br>126 formats · 229 file extensions · 6,500+ conversions · offline
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/art/banner-dark-en.svg">
+  <img src="docs/art/banner-light-en.svg" width="100%" alt="SweaxMorph: drop any file on Morph, pick a format">
+</picture>
 
 [![Download](https://img.shields.io/github/v/release/Sweax3169/sweaxmorph?label=download&color=8B7CFF&style=for-the-badge)](https://github.com/Sweax3169/sweaxmorph/releases/latest)
 [![Windows 10 · 11](https://img.shields.io/badge/Windows-10%20%C2%B7%2011-FF6B9A?style=for-the-badge)](#install)
@@ -72,6 +68,21 @@ like PowerPoint → PDF → PNG, or Pages → DOCX → EPUB.
 <sub>\* read only: SweaxMorph opens these and turns them into something else.</sub>
 
 ### Small things that matter
+
+<table>
+<tr>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-shrink-dark-en.svg"><img src="docs/art/card-shrink-light-en.svg" width="100%" alt="shrink"></picture></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-combine-dark-en.svg"><img src="docs/art/card-combine-light-en.svg" width="100%" alt="combine"></picture></td>
+</tr>
+<tr>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-route-dark-en.svg"><img src="docs/art/card-route-light-en.svg" width="100%" alt="route"></picture></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-safe-dark-en.svg"><img src="docs/art/card-safe-light-en.svg" width="100%" alt="safe"></picture></td>
+</tr>
+<tr>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-ocr-dark-en.svg"><img src="docs/art/card-ocr-light-en.svg" width="100%" alt="ocr"></picture></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/art/card-fast-dark-en.svg"><img src="docs/art/card-fast-light-en.svg" width="100%" alt="fast"></picture></td>
+</tr>
+</table>
 
 - **Shrink.** Every photo, video and song also gets a "Shrink" petal: the same format, much smaller.
 - **Combine.** Drop many files and tick *Combine into one file*: photos → one PDF or animated GIF, PDFs → one merged PDF, clips → one video, anything → one ZIP.
