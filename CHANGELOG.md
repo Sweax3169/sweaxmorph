@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 (2026-10-31)
+
+- LibreOffice conversions (PDF → Word, Pages, Numbers, Keynote, Visio…) no longer hang on the second use: every run gets a fresh LibreOffice profile.
+- Resting in the tray now gives memory back (about 5 MB working set while idle).
+- Settings are saved with readable shortcuts ("Win+Alt+F").
+
 ## 1.0.0 (2026-10-31)
 
 First release.

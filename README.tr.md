@@ -91,6 +91,32 @@ Pages → DOCX → EPUB gibi.
 - **Taramalar metne dönüşür.** Görsel → TXT ve taranmış PDF → TXT, Windows'un kendi yazı tanımasını senin dillerinde kullanır.
 - **Üç kalite.** *En iyi* her şeyi korur, *Dengeli* akıllı varsayılandır, *Küçük* paylaşmak içindir.
 
+## Ölçüldü
+
+Yerleşik öz testin 103 dönüşümünün hepsi geçiyor (`SweaxMorph.exe --selftest <klasör>`). Aşağıda bir kısmı var, AMD Ryzen 5 7600 ve 32 GB RAM ile ölçüldü. Örnek dosyalar bilerek küçük; süreler daha çok her motorun açılış maliyetini gösteriyor.
+
+| Dönüşüm | Kullanılan | Süre | Boyut |
+|---|---|---:|---|
+| `photo.png` → **WEBP** | ImageMagick | 189 ms | 90 KB → 20 KB |
+| `photo.png` → **AVIF** | ImageMagick | 696 ms | 90 KB → 11 KB |
+| `photo.png` → **ICO** | ImageMagick | 251 ms | 90 KB → 364 KB |
+| `photo.png` → **TXT** | Windows OCR | 707 ms | 90 KB → 66 B |
+| `clip.mp4` → **MKV** | FFmpeg | 341 ms | 433 KB → 430 KB |
+| `clip.mp4` → **WEBM** | FFmpeg | 2,6 s | 433 KB → 490 KB |
+| `clip.mp4` → **GIF** | FFmpeg | 2,1 s | 433 KB → 1,4 MB |
+| `song.wav` → **MP3** | FFmpeg | 307 ms | 1,0 MB → 36 KB |
+| `song.wav` → **MP4** | FFmpeg | 1,6 s | 1,0 MB → 171 KB |
+| `notes.md` → **DOCX** | Pandoc | 195 ms | 408 B → 11 KB |
+| `notes.md` → **PDF** | Pandoc → Edge | 2,8 s | 408 B → 72 KB |
+| `letter.docx` → **PDF** | Word | 4,3 s | 11 KB → 92 KB |
+| `deck.pptx` → **PNG** | PowerPoint | 1,1 s | 28 KB → 74 KB |
+| `paper.pdf` → **DOCX** | LibreOffice | 10,3 s | 92 KB → 7,9 KB |
+| `paper.pdf` → **TXT** | Windows PDF | 571 ms | 92 KB → 336 B |
+| `table.csv` → **XLSX** | SweaxMorph | 18 ms | 131 B → 6,6 KB |
+| `config.json` → **YAML** | SweaxMorph | 9 ms | 246 B → 202 B |
+| `font.ttf` → **WOFF2** | SweaxMorph | 3,0 s | 1021 KB → 464 KB |
+| `pack.zip` → **7Z** | SweaxMorph | 128 ms | 48 KB → 46 KB |
+
 ## Nasıl çalışır
 
 Dönüşümlerin çoğu SweaxMorph'un içinde yapılır: görseller ([Magick.NET](https://github.com/dlemstra/Magick.NET)), PDF sayfaları

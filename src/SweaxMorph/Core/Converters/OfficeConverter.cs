@@ -304,11 +304,18 @@ public sealed class LibreOfficeConverter : Converter
         await Gate.WaitAsync(s.Cancel);
         try
         {
-            string profile = new Uri(Path.Combine(Paths.Data, "libreoffice-profile")).AbsoluteUri;
+            // a fresh profile every time: LibreOffice started headless on a profile it has used before can wait
+            // forever on something it never shows, while a new one converts in seconds
+            string profile = Path.Combine(s.OutDir, "lo-profile");
             s.Progress.Report(0.15);
-            var r = await Proc.Run(Engines.LibreOffice.Path!, ["--headless", "--invisible", "--norestore", "--nologo", "--nodefault", "--nolockcheck", "--nofirststartwizard",
-                "-env:UserInstallation=" + profile, .. s.From.Id == "pdf" ? new[] { "--infilter=writer_pdf_import" } : [],
-                "--convert-to", Filter(s), "--outdir", s.OutDir, s.Input], s.Cancel, timeout: TimeSpan.FromMinutes(4));
+            Proc.Result r;
+            try
+            {
+                r = await Proc.Run(Engines.LibreOffice.Path!, ["--headless", "--invisible", "--norestore", "--nologo", "--nodefault", "--nolockcheck", "--nofirststartwizard",
+                    "-env:UserInstallation=" + new Uri(profile).AbsoluteUri, .. s.From.Id == "pdf" ? new[] { "--infilter=writer_pdf_import" } : [],
+                    "--convert-to", Filter(s), "--outdir", s.OutDir, s.Input], s.Cancel, timeout: TimeSpan.FromMinutes(3));
+            }
+            catch (TimeoutException) { throw new ConvertException(Loc.T("Err.Timeout", "LibreOffice")); }
             // LibreOffice names the result after the input file
             string expected = Path.Combine(s.OutDir, Path.GetFileNameWithoutExtension(s.Input) + s.To.Ext);
             if (!File.Exists(expected))

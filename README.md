@@ -91,6 +91,32 @@ like PowerPoint → PDF → PNG, or Pages → DOCX → EPUB.
 - **Scans become text.** Image → TXT and scanned PDF → TXT use the OCR built into Windows, in your languages.
 - **Three qualities.** *Best* keeps everything, *Balanced* is the sensible default, *Small* is for sharing.
 
+## Measured
+
+All 103 conversions of the built-in self-test pass (`SweaxMorph.exe --selftest <folder>`). These are some of them, timed on an AMD Ryzen 5 7600 with 32 GB of RAM. The sample files are small on purpose, so the times mostly show what each engine costs to start.
+
+| Conversion | Through | Time | Size |
+|---|---|---:|---|
+| `photo.png` → **WEBP** | ImageMagick | 189 ms | 90 KB → 20 KB |
+| `photo.png` → **AVIF** | ImageMagick | 696 ms | 90 KB → 11 KB |
+| `photo.png` → **ICO** | ImageMagick | 251 ms | 90 KB → 364 KB |
+| `photo.png` → **TXT** | Windows OCR | 707 ms | 90 KB → 66 B |
+| `clip.mp4` → **MKV** | FFmpeg | 341 ms | 433 KB → 430 KB |
+| `clip.mp4` → **WEBM** | FFmpeg | 2.6 s | 433 KB → 490 KB |
+| `clip.mp4` → **GIF** | FFmpeg | 2.1 s | 433 KB → 1.4 MB |
+| `song.wav` → **MP3** | FFmpeg | 307 ms | 1.0 MB → 36 KB |
+| `song.wav` → **MP4** | FFmpeg | 1.6 s | 1.0 MB → 171 KB |
+| `notes.md` → **DOCX** | Pandoc | 195 ms | 408 B → 11 KB |
+| `notes.md` → **PDF** | Pandoc → Edge | 2.8 s | 408 B → 72 KB |
+| `letter.docx` → **PDF** | Word | 4.3 s | 11 KB → 92 KB |
+| `deck.pptx` → **PNG** | PowerPoint | 1.1 s | 28 KB → 74 KB |
+| `paper.pdf` → **DOCX** | LibreOffice | 10.3 s | 92 KB → 7.9 KB |
+| `paper.pdf` → **TXT** | Windows PDF | 571 ms | 92 KB → 336 B |
+| `table.csv` → **XLSX** | SweaxMorph | 18 ms | 131 B → 6.6 KB |
+| `config.json` → **YAML** | SweaxMorph | 9 ms | 246 B → 202 B |
+| `font.ttf` → **WOFF2** | SweaxMorph | 3.0 s | 1021 KB → 464 KB |
+| `pack.zip` → **7Z** | SweaxMorph | 128 ms | 48 KB → 46 KB |
+
 ## How it works
 
 Most conversions run inside SweaxMorph: images ([Magick.NET](https://github.com/dlemstra/Magick.NET)), PDF pages and OCR
