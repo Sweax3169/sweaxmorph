@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.5 (2026-11-01)
+
+- The shortcut recorder no longer refuses a single ordinary key silently. It says which key arrived and why it can't stand alone; a macro key with nothing recorded on it sends a plain key (F1 on many gaming keyboards), and the note says to record a combination on it first.
+
 ## 1.0.4 (2026-11-01)
 
 - **Shortcuts from macro keys.** Keys sent by macro software and keyboard drivers used to be ignored, so a macro key that pressed the shortcut did nothing. They count now; only SweaxMorph's own keys are marked and skipped.

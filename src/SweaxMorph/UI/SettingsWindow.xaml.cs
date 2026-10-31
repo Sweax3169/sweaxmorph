@@ -189,17 +189,25 @@ public partial class SettingsWindow : Window
     {
         if (_recording) { App.Instance.StopRecordingHotkey(); _recording = false; Sync(); return; }
         _recording = true;
+        RecordStatus.Visibility = Visibility.Collapsed;
         Sync();
         App.Instance.RecordHotkey(h =>
         {
             _recording = false;
-            // a bare key that is used for typing would be stolen everywhere: only F13–F24, Pause and the like may stand alone
+            // a bare key that is used for typing would be stolen everywhere: only F13–F24, Pause and the like may stand alone.
+            // Say so: a macro key with nothing recorded on it sends a plain key (F1 on many keyboards), and a silent
+            // refusal looked like the macro key did not work at all.
             if (h is { } hk && (hk.HasModifier || Hotkey.IsFree(hk.Key)))
             {
                 S.Hotkey = hk.Spec;
                 S.Save();
                 App.Instance.ApplyHotkey();
                 Morph.Jump(0.5);
+            }
+            else if (h is { } bare)
+            {
+                RecordStatus.Text = Loc.T("S.RecordBare", bare.ToString());
+                RecordStatus.Visibility = Visibility.Visible;
             }
             Sync();
         });
