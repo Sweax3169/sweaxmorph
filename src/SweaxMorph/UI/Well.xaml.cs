@@ -54,9 +54,17 @@ public partial class Well : Window
     /// <summary>Raised with a short status for the tray tooltip (progress while hidden).</summary>
     public event Action<string?>? Status;
 
+    // ── bench seams: a pretend pointer, no focus taken, a look at the window when it is made ──
+    internal static Func<Win32.POINT>? BenchCursor;
+    internal static bool BenchQuiet;
+    internal static Action<Well>? BenchCreated;
+    /// <summary>The bench never gives the Well focus; with this it behaves as if it had it (no resting).</summary>
+    internal static bool BenchActive;
+
     public Well()
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => BenchCreated?.Invoke(this);
         _tick = Tick;
         Morph.MouseLeftButtonUp += Morph_Click;
         Stage.MouseMove += (_, e) => Pointer(e.GetPosition(Stage), false);
@@ -120,7 +128,7 @@ public partial class Well : Window
         }
         Wake();
         if (files is { Count: > 0 }) Hold(files.ToList());
-        if (how != Opening.Drag)
+        if (how != Opening.Drag && !BenchQuiet)
         {
             Win32.ForceForeground(new WindowInteropHelper(this).Handle);
             Activate();
@@ -242,7 +250,9 @@ public partial class Well : Window
 
     void PlaceAtCursor(IntPtr hwnd)
     {
-        Win32.GetCursorPos(out var pt);
+        Win32.POINT pt;
+        if (BenchCursor != null) pt = BenchCursor();
+        else Win32.GetCursorPos(out pt);
         var mon = Win32.MonitorFromPoint(pt, Win32.MONITOR_DEFAULTTONEAREST);
         var mi = new Win32.MONITORINFO { cbSize = Marshal.SizeOf<Win32.MONITORINFO>() };
         Win32.GetMonitorInfo(mon, ref mi);
@@ -280,7 +290,7 @@ public partial class Well : Window
             // resting follows focus, also when Windows never gave the Well focus at all (then no Deactivated comes)
             if (_state is State.Idle or State.Picking && !_modal && Environment.TickCount64 - _openedAt > 600)
             {
-                bool rest = !IsActive;
+                bool rest = !(IsActive || BenchActive);
                 if (rest != _resting) Rest(rest);
             }
             if (_resting)

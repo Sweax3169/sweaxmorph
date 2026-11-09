@@ -136,7 +136,9 @@ public sealed class TrayIcon : IDisposable
 /// </summary>
 public sealed class Ipc : IDisposable
 {
-    public const string PipeName = "SweaxMorph.Files.7d21";
+    /// <summary>Set by --instance: a separate copy listens on its own pipe.</summary>
+    public static string Suffix { get; set; } = "";
+    public static string PipeName => "SweaxMorph.Files.7d21" + Suffix;
     readonly CancellationTokenSource _stop = new();
     readonly List<string> _batch = [];
     readonly object _gate = new();

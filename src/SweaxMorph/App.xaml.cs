@@ -41,15 +41,29 @@ public partial class App : Application
         base.OnStartup(e);
         var args = e.Args;
         bool Has(string a) => args.Any(x => x.Equals(a, StringComparison.OrdinalIgnoreCase));
-        var files = args.Where(a => !a.StartsWith("--") && (File.Exists(a) || Directory.Exists(a))).Select(Path.GetFullPath).ToList();
+        // values of options that take one are never files to convert
+        var valued = new HashSet<int>(args.Select((a, i) => (a, i)).Where(x => x.a is "--instance" or "--data" or "--bench").Select(x => x.i + 1));
+        var files = args.Where((a, i) => !valued.Contains(i) && !a.StartsWith("--") && (File.Exists(a) || Directory.Exists(a))).Select(Path.GetFullPath).ToList();
 
+        if (Arg(args, "--uia-listen") is { } listen)
+        {
+            Dev.Bench.Listen(int.TryParse(listen, out int sec) ? sec : 60);
+            Shutdown();
+            return;
+        }
         if (Has("--selftest") || Has("--formats") || Has("--icon") || Has("--shots"))
         {
             Dev.Demo.Run(this, args);
             return;
         }
 
-        _instance = new Mutex(true, InstanceName, out bool first);
+        // --instance NAME runs a separate copy (its own mutex and pipe) that never installs or registers anything: the bench uses it
+        string? instance = Arg(args, "--instance");
+        bool isolated = instance != null;
+        bool bench = Has("--bench");
+        if (isolated) Ipc.Suffix = "." + instance;
+
+        _instance = new Mutex(true, InstanceName + Ipc.Suffix, out bool first);
         if (!first)
         {
             // already running: hand over the files (or the request) and leave
@@ -65,9 +79,9 @@ public partial class App : Application
         TaskScheduler.UnobservedTaskException += (_, ex) => { Paths.Log("task: " + ex.Exception); ex.SetObserved(); };
 
         string? portable = Path.Combine(AppContext.BaseDirectory, "sweaxmorph-data");
-        Paths.Init(Directory.Exists(portable) ? portable : null);
+        Paths.Init(Arg(args, "--data") ?? (Directory.Exists(portable) ? portable : null));
         bool firstRun = !File.Exists(Path.Combine(Paths.Data, "settings.json"));
-        if (!Has("--no-install") && Shell.RelocateIfNeeded() is { } installed)
+        if (!isolated && !Has("--no-install") && Shell.RelocateIfNeeded() is { } installed)
         {
             _instance.ReleaseMutex();
             _instance.Dispose();
@@ -87,22 +101,32 @@ public partial class App : Application
         _host.ThemeChanged += () => { _themeDelay.Stop(); _themeDelay.Start(); };
         _host.SessionUnlocked += () => _hook?.Rearm();
         _themeDelay.Tick += (_, _) => { _themeDelay.Stop(); Theme.Apply(Settings.Theme); };
-        _tray = new TrayIcon(_host, Loc.T("Tray.Tip"));
-        _tray.LeftClick += () => OpenWell(Well.Opening.Hotkey, null);
-        _tray.RightClick += ShowTrayMenu;
+        if (!bench)
+        {
+            _tray = new TrayIcon(_host, Loc.T("Tray.Tip"));
+            _tray.LeftClick += () => OpenWell(Well.Opening.Hotkey, null);
+            _tray.RightClick += ShowTrayMenu;
 
-        _hook = new KeyboardHook();
-        _hook.Pressed += () => Dispatcher.BeginInvoke(() => ToggleWell(), DispatcherPriority.Send);
-        _hook.DragTapped += () => Dispatcher.BeginInvoke(() => OpenWell(Well.Opening.Drag, null), DispatcherPriority.Send);
-        ApplyHotkey();
-        _rearm.Tick += (_, _) => _hook?.Rearm();
-        _rearm.Start();
+            _hook = new KeyboardHook();
+            _hook.Pressed += () => Dispatcher.BeginInvoke(() => ToggleWell(), DispatcherPriority.Send);
+            _hook.DragTapped += () => Dispatcher.BeginInvoke(() => OpenWell(Well.Opening.Drag, null), DispatcherPriority.Send);
+            ApplyHotkey();
+            _rearm.Tick += (_, _) => _hook?.Rearm();
+            _rearm.Start();
+        }
 
         _ipc = new Ipc();
         _ipc.Received += (command, list) => Dispatcher.BeginInvoke(() => Handle(command, list));
         _ipc.Start();
 
-        if (firstRun)
+        if (bench)
+        {
+            // ContextIdle: the bench's own steps are told apart from the app's work by their priority
+            Dispatcher.BeginInvoke(() => Dev.Bench.Run(this, args), DispatcherPriority.ContextIdle);
+            return;
+        }
+        if (isolated) { }
+        else if (firstRun)
         {
             Settings.Save();
             if (Settings.StartWithWindows) Shell.AutoStart(true);
@@ -124,7 +148,13 @@ public partial class App : Application
         else if (!Has("--background")) OpenWell(Well.Opening.Hotkey, null);
     }
 
-    void Handle(string command, List<string> files)
+    static string? Arg(string[] args, string name)
+    {
+        int i = Array.FindIndex(args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+    }
+
+    internal void Handle(string command, List<string> files)
     {
         switch (command)
         {
@@ -135,7 +165,7 @@ public partial class App : Application
         }
     }
 
-    Well GetWell()
+    internal Well GetWell()
     {
         if (_well != null) return _well;
         _well = new Well();
@@ -146,7 +176,7 @@ public partial class App : Application
 
     public void OpenWell(Well.Opening how, IReadOnlyList<string>? files) => GetWell().Open(how, files);
 
-    void ToggleWell()
+    internal void ToggleWell()
     {
         var w = GetWell();
         // the shortcut puts Morph away again, also while it waits on top of another window
