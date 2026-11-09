@@ -47,7 +47,7 @@ public partial class App : Application
 
         if (Arg(args, "--uia-listen") is { } listen)
         {
-            Dev.Bench.Listen(int.TryParse(listen, out int sec) ? sec : 60);
+            Dev.Bench.Listen(int.TryParse(listen, out int sec) ? sec : 60, int.TryParse(Arg(args, "--uia-pid"), out int pid) ? pid : 0);
             Shutdown();
             return;
         }

@@ -36,6 +36,7 @@ public static class Bench
     static readonly Dictionary<DispatcherOperation, long> Started = [];
     static string _stallWhat = "";
     static double _refMs = 1000 / 60.0;
+    static Process? _listener;
 
     public static async void Run(App app, string[] args)
     {
@@ -48,6 +49,7 @@ public static class Bench
         }
         catch (Exception ex) { r.AppendLine("BENCH FAILED: " + ex); }
         File.WriteAllText(file, r.ToString());
+        try { _listener?.Kill(); } catch { } // the listener this bench started, nothing else
         app.Quit();
     }
 
@@ -59,6 +61,12 @@ public static class Bench
             r.AppendLine($"process start → bench ready: {(DateTime.Now - p.StartTime).TotalMilliseconds:0} ms · render tier {RenderCapability.Tier >> 16}");
         r.AppendLine($"UI Automation listeners: structure {AutomationPeer.ListenerExists(AutomationEvents.StructureChanged)}, property {AutomationPeer.ListenerExists(AutomationEvents.PropertyChanged)}, focus {AutomationPeer.ListenerExists(AutomationEvents.AutomationFocusChanged)}");
 
+        if (args.Contains("--uia"))
+        {
+            _listener = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, $"--uia-listen 400 --uia-pid {Environment.ProcessId}") { UseShellExecute = false });
+            await Task.Delay(1500);
+            r.AppendLine("a UI Automation client walks this copy's windows every 0.7 s (--uia)");
+        }
         var mons = Monitors();
         foreach (var m in mons) r.AppendLine($"monitor {m.Name}: {m.Rect.Left},{m.Rect.Top} {m.Rect.Width}×{m.Rect.Height} · {m.Dpi} dpi ({m.Dpi / 96.0 * 100:0}%) · {m.Hz} Hz{(m.Primary ? " · primary" : "")}");
 
@@ -329,15 +337,38 @@ public static class Bench
     /// --uia-listen SECONDS: a UI Automation client that listens to the whole desktop, like the touch keyboard, the emoji
     /// panel or PowerToys do on this PC at times. With one running, WPF reports every layout pass of every window to it.
     /// </summary>
-    public static void Listen(int seconds)
+    public static void Listen(int seconds, int pid)
     {
         var root = System.Windows.Automation.AutomationElement.RootElement;
         System.Windows.Automation.Automation.AddStructureChangedEventHandler(root, System.Windows.Automation.TreeScope.Subtree, (_, _) => { });
         System.Windows.Automation.Automation.AddAutomationPropertyChangedEventHandler(root, System.Windows.Automation.TreeScope.Subtree, (_, _) => { },
             System.Windows.Automation.AutomationElement.BoundingRectangleProperty, System.Windows.Automation.AutomationElement.NameProperty);
-        Thread.Sleep(TimeSpan.FromSeconds(seconds));
+        // a focus-tracking client asks the windows it meets for their element tree; WPF then keeps reporting that tree
+        var until = DateTime.Now.AddSeconds(seconds);
+        while (DateTime.Now < until)
+        {
+            if (pid > 0)
+            {
+                var windows = new List<IntPtr>();
+                EnumWindows((h, _) => { GetWindowThreadProcessId(h, out uint p); if (p == pid) windows.Add(h); return true; }, IntPtr.Zero);
+                foreach (var h in windows)
+                {
+                    try
+                    {
+                        var e = System.Windows.Automation.AutomationElement.FromHandle(h);
+                        e.FindFirst(System.Windows.Automation.TreeScope.Descendants, System.Windows.Automation.Condition.TrueCondition);
+                    }
+                    catch { }
+                }
+            }
+            Thread.Sleep(700);
+        }
         System.Windows.Automation.Automation.RemoveAllEventHandlers();
     }
+
+    delegate bool EnumProc(IntPtr h, IntPtr l);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr l);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 
     // ── phases ──────────────────────────────────────────────────────────────
 
