@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using SweaxMorph.Core;
 using SweaxMorph.Native;
@@ -72,7 +73,15 @@ public partial class SettingsWindow : Window
         FolderToggle.Content = Loc.T("S.OpenFolder");
         LangLabel.Text = Loc.T("S.Language");
         LangAuto.Content = Loc.T("S.LangAuto");
-        ThemeLabel.Text = Loc.T("S.Theme");
+        HPlace.Text = Loc.T("S.Place");
+        PlaceHint.Text = Loc.T("S.PlaceHint");
+        PlaceCursor.Content = Loc.T("S.PlaceCursor");
+        PlaceCenter.Content = Loc.T("S.PlaceCenter");
+        PlaceRemember.Content = Loc.T("S.PlaceRemember");
+        AdminToggle.Content = Loc.T("S.Admin");
+        AdminHint.Text = Loc.T("S.AdminHint");
+        HLook.Text = Loc.T("S.Look");
+        LookHint.Text = Loc.T("S.LookHint");
         ThemeSystem.Content = Loc.T("S.ThemeSystem");
         ThemeLight.Content = Loc.T("S.ThemeLight");
         ThemeDark.Content = Loc.T("S.ThemeDark");
@@ -80,6 +89,7 @@ public partial class SettingsWindow : Window
         Sync();
         BuildEngines();
         BuildFormats();
+        BuildPalettes();
     }
 
     void Sync()
@@ -104,6 +114,141 @@ public partial class SettingsWindow : Window
         ThemeSystem.IsChecked = S.Theme == "system";
         ThemeLight.IsChecked = S.Theme == "light";
         ThemeDark.IsChecked = S.Theme == "dark";
+        PlaceCursor.IsChecked = S.Placement == "cursor";
+        PlaceCenter.IsChecked = S.Placement == "center";
+        PlaceRemember.IsChecked = S.Placement == "remember";
+        AdminToggle.IsChecked = S.AdminKeys;
+    }
+
+    // ── palettes ────────────────────────────────────────────────────────────
+
+    /// <summary>One tile per palette: Morph itself in those colours, on that palette's cloud, in the current theme.</summary>
+    void BuildPalettes()
+    {
+        PaletteTiles.Children.Clear();
+        foreach (var p in Palettes.All)
+        {
+            var m = p.For(Theme.Dark);
+            bool on = p.Key == Theme.Palette.Key;
+            var tile = new Border
+            {
+                Width = 118, Height = 146, Margin = new Thickness(0, 0, 9, 9), CornerRadius = new CornerRadius(20),
+                Background = Brush(m.Haze), BorderBrush = Brush(on ? m.Accent : m.Line), BorderThickness = new Thickness(on ? 2.5 : 1),
+                Cursor = System.Windows.Input.Cursors.Hand, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(),
+                ToolTip = p.Name, Tag = p.Key,
+            };
+            var dots = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 5, 0, 0) };
+            foreach (var hue in new[] { m.Accent, p.GelBottom, m.Accent2 })
+                dots.Children.Add(new Ellipse { Width = 9, Height = 9, Margin = new Thickness(2.5, 0, 2.5, 0), Fill = Brush(hue) });
+            tile.Child = new StackPanel
+            {
+                Children =
+                {
+                    new Image { Source = Swatch(p, Theme.Dark), Width = 104, Height = 96, Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Center },
+                    new TextBlock { Text = p.Name, FontSize = 14, FontWeight = FontWeights.Black, Foreground = Brush(m.Ink), HorizontalAlignment = HorizontalAlignment.Center },
+                    dots,
+                },
+            };
+            // a springy hover, like everything else in Morph's world
+            tile.MouseEnter += (_, _) => { var t = (ScaleTransform)tile.RenderTransform; Springs.To(t, ScaleTransform.ScaleXProperty, 1.05, 420, 0.55); Springs.To(t, ScaleTransform.ScaleYProperty, 1.05, 420, 0.55); };
+            tile.MouseLeave += (_, _) => { var t = (ScaleTransform)tile.RenderTransform; Springs.To(t, ScaleTransform.ScaleXProperty, 1, 300, 0.7); Springs.To(t, ScaleTransform.ScaleYProperty, 1, 300, 0.7); };
+            tile.MouseLeftButtonUp += (_, _) => UsePalette(p.Key);
+            PaletteTiles.Children.Add(tile);
+        }
+    }
+
+    void UsePalette(string key)
+    {
+        if (S.Palette == key) { Morph.Jump(0.4); return; }
+        S.Palette = key;
+        S.Save();
+        Theme.Apply(S.Theme, key);
+        Chrome();
+        Fill();
+        Morph.Jump(0.6);
+        Morph.Sparkles(10);
+    }
+
+    static SolidColorBrush Brush(string hex)
+    {
+        var b = new SolidColorBrush(Blob.Hex(hex));
+        b.Freeze();
+        return b;
+    }
+
+    static readonly Dictionary<(string, bool), ImageSource> Swatches = [];
+
+    /// <summary>Morph drawn once, still, in a palette's gel, on a soft round cloud of that palette's haze.</summary>
+    internal static ImageSource Swatch(Palette p, bool dark)
+    {
+        if (Swatches.TryGetValue((p.Key, dark), out var done)) return done;
+        const double W = 104, H = 96;
+        var host = new Canvas { Width = W, Height = H };
+        var m = p.For(dark);
+        var haze = Blob.Hex(m.Haze);
+        var cloud = new Ellipse
+        {
+            Width = 100, Height = 78,
+            Fill = new RadialGradientBrush(Blob.Mix(haze, Blob.Hex(p.GelTop), dark ? 0.16 : 0.34), Color.FromArgb(0, haze.R, haze.G, haze.B)),
+        };
+        Canvas.SetLeft(cloud, 2);
+        Canvas.SetTop(cloud, 12);
+        host.Children.Add(cloud);
+        var blob = new Blob { Frozen = true, Still = true, Radius = 30, Width = 90, Height = 90 };
+        blob.Tint(Blob.Hex(p.GelTop), Blob.Hex(p.GelBottom));
+        blob.Ink = Blob.Hex(p.Face);
+        Canvas.SetLeft(blob, 7);
+        Canvas.SetTop(blob, 2);
+        host.Children.Add(blob);
+        host.Measure(new Size(W, H));
+        host.Arrange(new Rect(0, 0, W, H));
+        host.UpdateLayout();
+        blob.SnapColours();
+        blob.Step(0.016);
+        var rtb = new RenderTargetBitmap((int)(W * 2), (int)(H * 2), 192, 192, PixelFormats.Pbgra32);
+        rtb.Render(host);
+        rtb.Freeze();
+        Swatches[(p.Key, dark)] = rtb;
+        return rtb;
+    }
+
+    // ── where Morph opens, administrator windows ────────────────────────────
+
+    void Place_Click(object sender, RoutedEventArgs e)
+    {
+        S.Placement = sender == PlaceCenter ? "center" : sender == PlaceRemember ? "remember" : "cursor";
+        S.Save();
+        Sync();
+    }
+
+    async void Admin_Click(object sender, RoutedEventArgs e)
+    {
+        bool want = AdminToggle.IsChecked == true;
+        AdminToggle.IsEnabled = false;
+        AdminStatus.Visibility = Visibility.Visible;
+        try
+        {
+            if (want)
+            {
+                AdminStatus.Text = Loc.T("S.AdminAsk");
+                var (ok, refused) = await Elevation.Enable();
+                S.AdminKeys = ok;
+                AdminStatus.Text = ok ? Loc.T("S.AdminOn") : refused ? Loc.T("S.AdminNo") : Loc.T("S.AdminFail");
+                if (ok) Morph.Jump(0.5);
+            }
+            else
+            {
+                await Elevation.Disable();
+                S.AdminKeys = false;
+                AdminStatus.Visibility = Visibility.Collapsed;
+            }
+            S.Save();
+        }
+        finally
+        {
+            AdminToggle.IsEnabled = true;
+            Sync();
+        }
     }
 
     void BuildEngines()
@@ -262,7 +407,7 @@ public partial class SettingsWindow : Window
     {
         S.Theme = sender == ThemeLight ? "light" : sender == ThemeDark ? "dark" : "system";
         S.Save();
-        Theme.Apply(S.Theme);
+        Theme.Apply(S.Theme, S.Palette);
         Chrome();
         Fill();
     }

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:SweaxMorph.UI"
         Title="SweaxMorph" Width="600" Height="690"
-        WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="False" Background="Transparent" ResizeMode="NoResize"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" AllowDrop="True"
         FontFamily="{DynamicResource Rounded}" Foreground="{DynamicResource Ink}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal">
@@ -83,7 +83,7 @@
                 <TextBox x:Name="Search" Margin="26,0,0,0" FontSize="17" FontWeight="ExtraBold" Background="Transparent" BorderThickness="0"
                          Foreground="{DynamicResource Ink}" CaretBrush="{DynamicResource Accent}" TextChanged="Search_TextChanged" VerticalContentAlignment="Center" Padding="0,6"/>
                 <TextBlock x:Name="SearchHint" Margin="28,0,0,0" FontSize="17" FontWeight="ExtraBold" Foreground="{DynamicResource Ink3}" IsHitTestVisible="False" VerticalAlignment="Center"/>
-                <Path x:Name="Wave" Height="8" VerticalAlignment="Bottom" Margin="0,0,0,-6" Stroke="{DynamicResource Accent}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Stretch="None"/>
+                <ui:WaveLine x:Name="Wave" Height="8" VerticalAlignment="Bottom" Margin="0,0,0,-6" Stroke="{DynamicResource Accent}"/>
             </Grid>
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False" Margin="0,8,0,0">
                 <StackPanel x:Name="Garden" Margin="12,0"/>

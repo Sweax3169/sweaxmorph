@@ -179,6 +179,68 @@ internal static class Win32
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)] public string szTypeName;
     }
 
+    // ── windows, regions, foreground ─────────────────────────────────────────
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+    [DllImport("user32.dll")] public static extern bool GetWindowBand(IntPtr hWnd, out uint band);
+    [DllImport("user32.dll")] public static extern bool IsHungAppWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(uint dwProcessId);
+    [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+    [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
+    [DllImport("gdi32.dll")] public static extern IntPtr CreateRectRgn(int l, int t, int r, int b);
+    [DllImport("gdi32.dll")] public static extern IntPtr CreateEllipticRgn(int l, int t, int r, int b);
+    [DllImport("gdi32.dll")] public static extern int CombineRgn(IntPtr dest, IntPtr a, IntPtr b, int mode);
+    public const int RGN_OR = 2;
+    public const uint MONITOR_DEFAULTTONULL = 0;
+    public static readonly IntPtr HWND_BOTTOM = new(1);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LASTINPUTINFO { public uint cbSize, dwTime; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MARGINS { public int Left, Right, Top, Bottom; }
+
+    [DllImport("dwmapi.dll")] public static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS margins);
+    [DllImport("advapi32.dll", SetLastError = true)] public static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true)] public static extern bool GetTokenInformation(IntPtr token, int cls, IntPtr info, int length, out int returned);
+    [DllImport("kernel32.dll", SetLastError = true)] public static extern bool GetNamedPipeServerProcessId(IntPtr pipe, out uint serverProcessId);
+
+    /// <summary>Milliseconds since the user last touched the keyboard or mouse.</summary>
+    public static long IdleMs()
+    {
+        var li = new LASTINPUTINFO { cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>() };
+        return GetLastInputInfo(ref li) ? unchecked((uint)Environment.TickCount - li.dwTime) : 0;
+    }
+
+    /// <summary>
+    /// The integrity level of a process (0x2000 medium, 0x3000 high = administrator), or -1 when its token can't be
+    /// read — which itself means it runs above us.
+    /// </summary>
+    public static int IntegrityOf(uint pid)
+    {
+        IntPtr proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (proc == IntPtr.Zero) return -1;
+        try
+        {
+            if (!OpenProcessToken(proc, 0x0008, out IntPtr token)) return -1; // TOKEN_QUERY
+            try
+            {
+                IntPtr buf = Marshal.AllocHGlobal(64);
+                try
+                {
+                    if (!GetTokenInformation(token, 25, buf, 64, out _)) return -1; // TokenIntegrityLevel → TOKEN_MANDATORY_LABEL
+                    IntPtr sid = Marshal.ReadIntPtr(buf);
+                    int count = Marshal.ReadByte(sid, 1);
+                    return Marshal.ReadInt32(sid, 8 + 4 * (count - 1));
+                }
+                finally { Marshal.FreeHGlobal(buf); }
+            }
+            finally { CloseHandle(token); }
+        }
+        finally { CloseHandle(proc); }
+    }
+
     // ── dwm / shcore ─────────────────────────────────────────────────────────
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     [DllImport("shcore.dll")] public static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
@@ -221,13 +283,23 @@ internal static class Win32
 
     public static void Send(params INPUT[] inputs) => SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
 
-    /// <summary>Brings a window to the foreground even when another thread owns the focus.</summary>
-    public static void ForceForeground(IntPtr hwnd)
+    /// <summary>
+    /// Brings a window to the foreground even though the shortcut was caught by a keyboard hook, which does not give
+    /// the right to. A no-op mouse input makes this process the source of the latest input, which Windows accepts (the
+    /// way PowerToys does it). Only if that fails is the input of the window in front borrowed, and never from a window
+    /// that is not answering: sharing input with a hung window would freeze the Well with it.
+    /// Returns whether the window is now in front.
+    /// </summary>
+    public static bool ForceForeground(IntPtr hwnd)
     {
-        if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return;
+        if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return false;
         if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
         IntPtr fg = GetForegroundWindow();
-        if (fg == hwnd) return;
+        if (fg == hwnd) return true;
+        Send(new INPUT { type = INPUT_MOUSE, U = new InputUnion { mi = new MOUSEINPUT { dwExtraInfo = SweaxMark } } });
+        if (SetForegroundWindow(hwnd) && GetForegroundWindow() == hwnd) return true;
+        fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero || IsHungAppWindow(fg)) return false;
         uint fgThread = GetWindowThreadProcessId(fg, out _);
         uint me = GetCurrentThreadId();
         bool attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
@@ -240,7 +312,10 @@ internal static class Win32
         {
             if (attached) AttachThreadInput(me, fgThread, false);
         }
+        return GetForegroundWindow() == hwnd;
     }
+
+    public const uint INPUT_MOUSE = 0;
 
     public static string? KnownFolder(Guid id)
     {

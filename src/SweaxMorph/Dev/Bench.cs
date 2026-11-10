@@ -17,8 +17,9 @@ namespace SweaxMorph.Dev;
 /// <summary>
 /// Times the Well the way it is really used, in a copy of SweaxMorph that shares nothing with the installed one:
 /// its own mutex and pipe (--instance bench), its own data folder, no keyboard hook, no tray icon, no registry.
-/// The Well is cloaked: Windows composes nothing of it and it never takes the mouse or focus, yet WPF draws every
-/// frame exactly as on screen (a window moved off-screen is not drawn at all, which hides the real cost).
+/// The Well opens on the primary monitor for real but under every window, the desktop included, at 2% opacity and
+/// without focus: WPF and the compositor do all their work, and nobody sees or clicks it. (Cloaked or off-screen,
+/// WPF draws a window less often or not at all, which hides the very cost being measured.)
 ///   SweaxMorph.exe --bench FILE --instance bench [--data DIR] [--quick]
 /// Measures: request → visible → first frames; frame pacing while opening, dragging, converting and idle; CPU per
 /// thread; dispatcher stalls; layout passes; GC pauses; idle CPU and memory; requests that were lost (rapid
@@ -37,6 +38,48 @@ public static class Bench
     static string _stallWhat = "";
     static double _refMs = 1000 / 60.0;
     static Process? _listener;
+    static bool OnTop => Environment.GetCommandLineArgs().Contains("--ontop");
+    static readonly StringBuilder _steps = new();
+
+    static Win32.POINT cursor;
+
+    /// <summary>
+    /// Before anything is made: the pointer the Well opens at is a pretend one, the Well never takes focus, and its
+    /// window is cloaked from the moment it exists, so nothing of the bench is ever seen or clicked.
+    /// </summary>
+    public static void Prepare()
+    {
+        var mons = Monitors();
+        cursor = Center(mons.First(m => m.Primary));
+        Well.BenchCursor = () => cursor;
+        Well.BenchQuiet = true;
+        Well.BenchActive = true;
+        bool onTop = Environment.GetCommandLineArgs().Contains("--ontop");
+        Seam("BenchBottom", !onTop); // newer builds place the Well at the bottom themselves
+        if (Environment.GetCommandLineArgs().Contains("--layered")) Seam("Layered", true);
+        if (Environment.GetCommandLineArgs().Contains("--dwm")) Seam("Layered", false);
+        Well.BenchCreated = w =>
+        {
+            // On screen, so WPF and the compositor do all their real work (a cloaked or off-screen window is drawn
+            // less often or not at all), but under every window, the desktop included. (No opacity on top: that would
+            // make WPF draw the whole window through an extra layer every frame, which the app itself never does.)
+            IntPtr h = new WindowInteropHelper(w).Handle;
+            if (!onTop) w.Topmost = false;
+            w.IsVisibleChanged += (_, _) =>
+            {
+                Visibility.Add((Now, w.IsVisible));
+                if (w.IsVisible && !onTop) Win32.SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
+            };
+            w.LayoutUpdated += (_, _) => _layouts++;
+        };
+    }
+
+    /// <summary>Seams that only newer builds have are set by name, so one bench measures old and new builds alike.</summary>
+    static void Seam(string name, object value) =>
+        typeof(Well).GetField(name, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.SetValue(null, value);
+
+    static object? SeamValue(string name) =>
+        typeof(Well).GetField(name, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.GetValue(null);
 
     public static async void Run(App app, string[] args)
     {
@@ -57,6 +100,7 @@ public static class Bench
     {
         string version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "?";
         r.AppendLine($"SweaxMorph {version} bench · {DateTime.Now:yyyy-MM-dd HH:mm} · {Environment.ProcessPath}");
+        r.AppendLine($"window: {(app.GetWell().AllowsTransparency ? "layered (AllowsTransparency)" : "compositor-blended (DWM)")}");
         using (var p = Process.GetCurrentProcess())
             r.AppendLine($"process start → bench ready: {(DateTime.Now - p.StartTime).TotalMilliseconds:0} ms · render tier {RenderCapability.Tier >> 16}");
         r.AppendLine($"UI Automation listeners: structure {AutomationPeer.ListenerExists(AutomationEvents.StructureChanged)}, property {AutomationPeer.ListenerExists(AutomationEvents.PropertyChanged)}, focus {AutomationPeer.ListenerExists(AutomationEvents.AutomationFocusChanged)}");
@@ -80,20 +124,8 @@ public static class Bench
         app.Settings.OutputFolder = Path.Combine(Paths.Data, "out");
         Directory.CreateDirectory(app.Settings.OutputFolder);
 
-        // the pointer the Well opens at, and the window kept out of sight
         var primary = mons.First(m => m.Primary);
-        Win32.POINT cursor = Center(primary);
-        Well.BenchCursor = () => cursor;
-        Well.BenchQuiet = true;
-        Well.BenchActive = true;
-        Well.BenchCreated = w =>
-        {
-            IntPtr h = new WindowInteropHelper(w).Handle;
-            int on = 1;
-            Win32.DwmSetWindowAttribute(h, 13, ref on, 4); // DWMWA_CLOAK
-            w.IsVisibleChanged += (_, _) => Visibility.Add((Now, w.IsVisible));
-            w.LayoutUpdated += (_, _) => _layouts++;
-        };
+        cursor = Center(primary);
 
         var d = Dispatcher.CurrentDispatcher;
         d.Hooks.OperationStarted += (_, e) => Started[e.Operation] = Stopwatch.GetTimestamp();
@@ -128,11 +160,14 @@ public static class Bench
         var placeErr = new List<double>();
         for (int c = 0; c < cycles; c++)
         {
-            var mon = mons[c % mons.Count];
+            var mon = OnTop ? mons.First(m => m.Name == (Arg(args, "--mon") ?? "DISPLAY2")) : mons[c % mons.Count];
             cursor = Center(mon);
             await Task.Delay(c == 0 ? 50 : 900);
             var phase = Begin();
             double t0 = Now;
+            _steps.Clear();
+            double last = 0;
+            Seam("BenchStep", (Action<string>)(n => { double t = Now; _steps.Append($"{n} {(last == 0 ? t - t0 : t - last):0.0} "); last = t; }));
             ThreadPool.QueueUserWorkItem(_ => d.BeginInvoke(() => app.ToggleWell(), DispatcherPriority.Send));
             double shown = await Until(() => app.GetWell().IsVisible, 3000);
             double first = await FrameAfter(shown);
@@ -142,9 +177,10 @@ public static class Bench
             openMs.Add(shown - t0);
             firstMs.Add(ready - t0);
             var w = app.GetWell();
+            if (!OnTop && Exposed(w) is { } what) { r.AppendLine("STOPPED: the bench window was not covered (" + what + ")"); w.Hide(); return; }
             string place = Placement(w, cursor, mon, out double err);
             placeErr.Add(err);
-            r.AppendLine($"open {c + 1} on {mon.Name}{(c == 0 ? " (cold: first open after start)" : "")}: visible after {shown - t0:0.0} ms · first frame {first - t0:0.0} ms · painted {ready - t0:0.0} ms");
+            r.AppendLine($"open {c + 1} on {mon.Name}{(c == 0 ? " (first open after start)" : "")}: visible after {shown - t0:0.0} ms · first frame {first - t0:0.0} ms · painted {ready - t0:0.0} ms{(_steps.Length > 0 ? " · in Open: " + _steps : "")}");
             r.AppendLine($"    opening   {open}");
             r.AppendLine($"    placement {place}");
 
@@ -178,6 +214,7 @@ public static class Bench
             double hidden = await Until(() => !app.GetWell().IsVisible, 3000);
             r.AppendLine($"    close: hidden after {hidden - h0:0} ms");
         }
+        if (OnTop) { r.AppendLine($"SUMMARY open: visible median {Median(openMs):0.0} ms · painted median {Median(firstMs):0.0} ms"); return; }
         r.AppendLine($"SUMMARY open: visible median {Median(openMs):0.0} ms (max {openMs.Max():0.0}) · painted median {Median(firstMs):0.0} ms (max {firstMs.Max():0.0}) · placement error max {placeErr.Max():0} px");
 
         // ── 2. a real conversion while Morph is on screen ─────────────────────
@@ -212,6 +249,7 @@ public static class Bench
             cursor = Center(primary);
             ThreadPool.QueueUserWorkItem(_ => d.BeginInvoke(() => app.ToggleWell(), DispatcherPriority.Send));
             await Until(() => app.GetWell().IsVisible, 3000);
+            Elsewhere(app.GetWell());
             await Task.Delay(1500);
             var phase = Begin();
             double w0 = Now;
@@ -260,6 +298,7 @@ public static class Bench
                 cursor = Center(a);
                 ThreadPool.QueueUserWorkItem(_ => d.BeginInvoke(() => app.ToggleWell(), DispatcherPriority.Send));
                 await Until(() => app.GetWell().IsVisible, 3000);
+                Elsewhere(app.GetWell());
                 await Task.Delay(1500);
                 cursor = Center(b);
                 ThreadPool.QueueUserWorkItem(_ => d.BeginInvoke(() => app.ToggleWell(), DispatcherPriority.Send));
@@ -366,13 +405,30 @@ public static class Bench
         System.Windows.Automation.Automation.RemoveAllEventHandlers();
     }
 
+    // declared here, so the same bench file builds against 1.0.5 too
+    [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Win32.POINT p);
+    [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint flags);
+
     delegate bool EnumProc(IntPtr h, IntPtr l);
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr l);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 
+    /// <summary>Null when something else lies over Morph's centre (as it must for the bench); else what was found.</summary>
+    static string? Exposed(Well w)
+    {
+        IntPtr h = new WindowInteropHelper(w).Handle;
+        Win32.GetWindowRect(h, out var rect);
+        double k = Win32.GetDpiForWindow(h) / 96.0;
+        var c = new Win32.POINT { X = rect.Left + (int)(Well.Center.X * k), Y = rect.Top + (int)(Well.Center.Y * k) };
+        IntPtr hit = GetAncestor(WindowFromPoint(c), 2);
+        return hit == h ? "Morph was on top" : null;
+    }
+
+    static void Elsewhere(Well w) => typeof(Well).GetMethod("BenchElsewhere", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(w, null);
+
     // ── phases ──────────────────────────────────────────────────────────────
 
-    sealed record Phase(Dictionary<int, TimeSpan> Threads, TimeSpan Cpu, double Pause, int Gc2, int Layouts);
+    sealed record Phase(Dictionary<int, TimeSpan> Threads, TimeSpan Cpu, double Pause, int Gc2, int Layouts, int Regions, double RegionMs);
 
     static bool _listening;
 
@@ -384,7 +440,8 @@ public static class Bench
         if (!frames && _listening) { CompositionTarget.Rendering -= OnFrame; _listening = false; }
         _stallMax = 0; _stallSum = 0; _stallCount = 0; _stallWhat = "";
         using var p = Process.GetCurrentProcess();
-        return new Phase(ThreadTimes(), p.TotalProcessorTime, GC.GetTotalPauseDuration().TotalMilliseconds, GC.CollectionCount(2), _layouts);
+        return new Phase(ThreadTimes(), p.TotalProcessorTime, GC.GetTotalPauseDuration().TotalMilliseconds, GC.CollectionCount(2), _layouts,
+            SeamValue("BenchRegionSets") as int? ?? 0, SeamValue("BenchRegionMs") as double? ?? 0);
     }
 
     static string End(Phase b, double t0, int ui)
@@ -397,8 +454,10 @@ public static class Bench
         double cpu = (p.TotalProcessorTime - b.Cpu).TotalMilliseconds / wall * 100;
         string frames = gaps.Count < 2 ? $"frames {stamps.Count} (none drawn)"
             : $"frames {stamps.Count} ({stamps.Count / wall * 1000:0}/s) median {Median(gaps):0.0} p95 {Pct(gaps, 0.95):0.0} worst {gaps.Max():0.0} ms · missed {gaps.Count(g => g > _refMs * 1.6)}";
-        return $"{frames} · cpu {cpu:0}% ({Busiest(b.Threads, ThreadTimes(), wall, ui)}) · ui busiest op {_stallMax:0.0} ms ({_stallWhat}), ui busy {_stallSum / wall * 100:0}% · layouts {_layouts - b.Layouts} · gc pause {GC.GetTotalPauseDuration().TotalMilliseconds - b.Pause:0} ms, gen2 {GC.CollectionCount(2) - b.Gc2}";
+        return $"{frames} · cpu {cpu:0}% ({Busiest(b.Threads, ThreadTimes(), wall, ui)}) · ui busiest op {_stallMax:0.0} ms ({_stallWhat}), ui busy {_stallSum / wall * 100:0}% · layouts {_layouts - b.Layouts}{Regions(b)} · gc pause {GC.GetTotalPauseDuration().TotalMilliseconds - b.Pause:0} ms, gen2 {GC.CollectionCount(2) - b.Gc2}";
     }
+
+    static string Regions(Phase b) => SeamValue("BenchRegionSets") is int n ? $" · reshaped {n - b.Regions}× ({(SeamValue("BenchRegionMs") as double? ?? 0) - b.RegionMs:0.0} ms)" : "";
 
     static void OnFrame(object? sender, EventArgs e) => Frames.Add(Now);
 

@@ -149,6 +149,158 @@ public static class Shots
         try { Directory.Delete(outDir, true); } catch { }
     }
 
+    // ── palettes ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// --palettes DIR: every palette, in light and dark. A contact sheet of Morph waiting in each one, a recording of
+    /// Morph changing palette live (the real Theme.Apply, so its gel melts from one colour to the next), and the new
+    /// Look section of the settings.
+    /// </summary>
+    public static async Task Palettes(App app, string dir, string[] args)
+    {
+        Directory.CreateDirectory(dir);
+        Engines.Detect();
+        var settings = new Settings { Language = Loc.Turkish ? "tr" : "en" };
+        app.UseSettings(settings);
+        Planner.Build(App.AllConverters());
+        string lang = Loc.Turkish ? "tr" : "en";
+        const double SW = 640, SH = 700;            // one stage: the Well and a margin of its palette's desk
+        var at = new Point(20, 4);
+
+        foreach (var mode in new[] { "light", "dark" })
+        {
+            Springs.ManualClock = true;
+            Theme.Apply(mode, "candy");
+            var well = new Well();
+            well.DemoShow();
+            for (int i = 0; i < 40; i++) { Springs.Step(1 / 30.0); await Dispatcher.Yield(DispatcherPriority.Background); }
+
+            // 1) a sheet: Morph waiting in each palette
+            var cells = new List<(Palette p, BitmapSource img)>();
+            foreach (var p in UI.Palettes.All)
+            {
+                Theme.Apply(mode, p.Key);
+                for (int i = 0; i < 45; i++) { Springs.Step(1 / 30.0); await Dispatcher.Yield(DispatcherPriority.Background); }
+                well.UpdateLayout();
+                cells.Add((p, Stage(well, p, SW, SH, at, 0.5)));
+            }
+            Save(Sheet(cells, mode == "dark"), Path.Combine(dir, $"palettes-{mode}-{lang}.png"));
+
+            // 2) the recording: palette after palette, live
+            var frames = Path.Combine(dir, $"~pal-{mode}-{lang}");
+            if (Directory.Exists(frames)) Directory.Delete(frames, true);
+            Directory.CreateDirectory(frames);
+            int n = 0;
+            foreach (var p in UI.Palettes.All.Append(UI.Palettes.All[0]))
+            {
+                Theme.Apply(mode, p.Key);
+                well.DemoBounce();
+                for (int i = 0; i < 40; i++)
+                {
+                    Springs.Step(1 / 30.0);
+                    await Dispatcher.Yield(DispatcherPriority.Background);
+                    well.UpdateLayout();
+                    Save(Stage(well, p, SW, SH, at, 0.75), Path.Combine(frames, $"f{n++:D4}.png"));
+                }
+            }
+            well.Close();
+            if (Engines.FFmpeg.Path is { } ff)
+            {
+                string pattern = Path.Combine(frames, "f%04d.png");
+                await Proc.Run(ff, ["-y", "-hide_banner", "-framerate", "30", "-i", pattern, "-filter_complex",
+                    "fps=15,scale=420:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=200:stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle",
+                    "-loop", "0", Path.Combine(dir, $"palettes-{mode}-{lang}.gif")], CancellationToken.None);
+                await Proc.Run(ff, ["-y", "-hide_banner", "-framerate", "30", "-i", pattern, "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart", Path.Combine(dir, $"palettes-{mode}-{lang}.mp4")], CancellationToken.None);
+            }
+            if (!args.Contains("--keep")) try { Directory.Delete(frames, true); } catch { }
+
+            // 3) the Look section of the settings, as it comes out of the box (Candy)
+            Springs.ManualClock = false;
+            Theme.Apply(mode, "candy");
+            var sw = new SettingsWindow { Left = -32000, Top = -32000, ShowActivated = false };
+            sw.Show();
+            await Task.Delay(600);
+            sw.UpdateLayout();
+            Save(Section(sw, "HLook", "PaletteTiles", 1.25), Path.Combine(dir, $"look-{mode}-{lang}.png"));
+            Save(Section(sw, "HPlace", "AdminHint", 1.25), Path.Combine(dir, $"place-{mode}-{lang}.png"));
+            sw.Close();
+        }
+        Theme.Apply("light", "candy");
+    }
+
+    /// <summary>The Well on its palette's desk, at <paramref name="k"/> of its size.</summary>
+    static BitmapSource Stage(Well well, Palette p, double w, double h, Point at, double k)
+    {
+        var (a, b) = UI.Palettes.Desk(p, Theme.Dark);
+        var dv = new DrawingVisual();
+        using (var dc = dv.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(k, k));
+            dc.DrawRectangle(new LinearGradientBrush(a, b, 35), null, new Rect(0, 0, w, h));
+            var root = well.Surface;
+            dc.DrawRectangle(new VisualBrush(root) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(at.X, at.Y, root.ActualWidth, root.ActualHeight));
+            dc.Pop();
+        }
+        var rtb = new RenderTargetBitmap((int)(w * k), (int)(h * k), 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(dv);
+        rtb.Freeze();
+        return rtb;
+    }
+
+    /// <summary>Four across, two down, each with the palette's name.</summary>
+    static BitmapSource Sheet(List<(Palette p, BitmapSource img)> cells, bool dark)
+    {
+        double cw = cells[0].img.PixelWidth, ch = cells[0].img.PixelHeight, label = 34, gap = 14;
+        int cols = 4, rows = (cells.Count + cols - 1) / cols;
+        double w = cols * cw + (cols + 1) * gap, h = rows * (ch + label) + (rows + 1) * gap;
+        var dv = new DrawingVisual();
+        var face = new Typeface(Theme.Rounded, FontStyles.Normal, FontWeights.Black, FontStretches.Normal);
+        using (var dc = dv.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Blob.Hex(dark ? "#121016" : "#FBFAFD")), null, new Rect(0, 0, w, h));
+            for (int i = 0; i < cells.Count; i++)
+            {
+                var (p, img) = cells[i];
+                double x = gap + (i % cols) * (cw + gap), y = gap + (i / cols) * (ch + label + gap);
+                dc.PushClip(new RectangleGeometry(new Rect(x, y, cw, ch), 22, 22));
+                dc.DrawImage(img, new Rect(x, y, cw, ch));
+                dc.Pop();
+                var m = p.For(dark);
+                var t = Text(p.Name, face, 17, new SolidColorBrush(Blob.Hex(dark ? "#F2EEF8" : "#231D2E")));
+                dc.DrawText(t, new Point(x + 6, y + ch + 7));
+                for (int d = 0; d < 3; d++)
+                    dc.DrawEllipse(new SolidColorBrush(Blob.Hex(new[] { m.Accent, p.GelBottom, m.Accent2 }[d])), null, new Point(x + 16 + t.Width + d * 15, y + ch + 18), 5, 5);
+            }
+        }
+        var rtb = new RenderTargetBitmap((int)w, (int)h, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(dv);
+        return rtb;
+    }
+
+    /// <summary>A strip of the settings, from one named element down to another.</summary>
+    static BitmapSource Section(SettingsWindow sw, string from, string to, double k)
+    {
+        var top = (FrameworkElement)sw.FindName(from);
+        var bottom = (FrameworkElement)sw.FindName(to);
+        var page = (FrameworkElement)VisualTreeHelper.GetParent(top);
+        double y0 = top.TranslatePoint(new Point(0, 0), page).Y - 10;
+        double y1 = bottom.TranslatePoint(new Point(0, bottom.ActualHeight), page).Y + 14;
+        double w = page.ActualWidth + 44, h = y1 - y0;
+        var dv = new DrawingVisual();
+        using (var dc = dv.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(k, k));
+            dc.DrawRectangle(Theme.Brush("Haze"), null, new Rect(0, 0, w, h));
+            dc.DrawRectangle(new VisualBrush(page) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top, ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(-20, y0, w, h) },
+                null, new Rect(0, 0, w, h));
+            dc.Pop();
+        }
+        var rtb = new RenderTargetBitmap((int)(w * k), (int)(h * k), 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(dv);
+        return rtb;
+    }
+
     // ── composing a frame ───────────────────────────────────────────────────
 
     /// <summary>An abstract desktop: soft colour fields and one folder window holding the photo.</summary>

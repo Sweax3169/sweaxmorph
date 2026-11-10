@@ -63,6 +63,19 @@ public sealed class Settings
     public Dictionary<string, int> Used { get; set; } = [];
     public bool FirstRunDone { get; set; }
 
+    // ── 1.1 ──
+    /// <summary>Where the Well opens: "cursor" (around the pointer), "center" (the middle of the pointer's monitor), "remember" (where you last dragged it).</summary>
+    public string Placement { get; set; } = "cursor";
+    /// <summary>Morph's centre in screen pixels, saved whenever you drag the cloud to move it.</summary>
+    public int? WellX { get; set; }
+    public int? WellY { get; set; }
+    /// <summary>Colour palette (see <see cref="UI.Palettes"/>); "candy" is the original look.</summary>
+    public string Palette { get; set; } = "candy";
+    /// <summary>A helper with administrator rights catches the shortcut over administrator windows too (opt-in, Windows asks once).</summary>
+    public bool AdminKeys { get; set; }
+    /// <summary>Settings layout version: 1 = 1.0.x, 2 = 1.1.</summary>
+    public int Schema { get; set; } = 2;
+
     [JsonIgnore] string _file = "";
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping, Converters = { new JsonStringEnumConverter() } };
 
@@ -70,10 +83,33 @@ public sealed class Settings
     {
         string f = Path.Combine(Paths.Data, "settings.json");
         Settings s;
-        try { s = File.Exists(f) ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(f), Json) ?? new() : new(); }
+        bool existed = File.Exists(f);
+        string? old = null;
+        try
+        {
+            old = existed ? File.ReadAllText(f) : null;
+            s = old != null ? JsonSerializer.Deserialize<Settings>(old, Json) ?? new() : new();
+        }
         catch { s = new(); }
         s._file = f;
+        s.Normalize();
+        // 1.0.x files have no Schema: they read with the 1.1 defaults; the old file is kept beside the new one, once
+        if (existed && old != null && !old.Contains("\"Schema\""))
+        {
+            try { File.WriteAllText(f + ".1.0.bak", old); } catch { }
+            s.Schema = 2;
+            s.Save();
+        }
         return s;
+    }
+
+    /// <summary>Unknown values (a hand-edited file, a newer version) fall back to the defaults.</summary>
+    void Normalize()
+    {
+        if (Placement is not ("cursor" or "center" or "remember")) Placement = "cursor";
+        if (UI.Palettes.Find(Palette) == null) Palette = "candy";
+        if (Theme is not ("system" or "light" or "dark")) Theme = "system";
+        Used ??= [];
     }
 
     public void Save()

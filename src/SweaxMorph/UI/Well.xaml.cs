@@ -48,6 +48,10 @@ public partial class Well : Window
     double _t;
     readonly Func<double, bool> _tick;
     readonly DispatcherTimer _leave = new() { Interval = TimeSpan.FromMilliseconds(120) };
+    IntPtr _hwnd;
+    // the window in front right after opening; when it changes, or a button goes down elsewhere, you have gone elsewhere
+    IntPtr _frontAtOpen;
+    bool _hadFocus, _pressedOutside;
     readonly DispatcherTimer _autoHide = new() { Interval = TimeSpan.FromSeconds(7) };
     Settings Settings => App.Instance.Settings;
 
@@ -60,11 +64,32 @@ public partial class Well : Window
     internal static Action<Well>? BenchCreated;
     /// <summary>The bench never gives the Well focus; with this it behaves as if it had it (no resting).</summary>
     internal static bool BenchActive;
+    /// <summary>The bench's Well sits at the very bottom of the z-order, under the desktop: on screen for WPF and the compositor, seen by no one.</summary>
+    internal static bool BenchBottom;
+    /// <summary>The bench times the steps of an opening.</summary>
+    internal static Action<string>? BenchStep;
+    /// <summary>
+    /// How the Well's window is see-through. Layered (the default): WPF copies each frame back from the graphics card and
+    /// hands it to Windows, which also makes clear pixels let clicks through. The alternative, the compositor blending
+    /// WPF's own transparent pixels (as SweaxClip's panel does), was measured here for Morph and lost: with the cloud,
+    /// the zoom and the petals changing large areas every frame, it drew opening and dragging at 100–125 frames a
+    /// second against 185–235 for the layered window, on top or not (2026-11-10, 240 Hz). It stays for the bench
+    /// (--dwm) with its window shape code, in case a future Windows or GPU turns the result around.
+    /// </summary>
+    internal static bool Layered = true;
 
     public Well()
     {
         InitializeComponent();
-        SourceInitialized += (_, _) => BenchCreated?.Invoke(this);
+        if (Layered) AllowsTransparency = true;
+        SourceInitialized += (_, _) =>
+        {
+            _hwnd = new WindowInteropHelper(this).Handle;
+            if (!AllowsTransparency) Layers.SeeThrough(_hwnd);
+            BenchCreated?.Invoke(this);
+        };
+        // the cloud is a handle: drag it to move Morph (and, with "where I left it", to choose where it opens)
+        Haze.MouseLeftButtonDown += (_, e) => { e.Handled = true; MoveByHand(); };
         _tick = Tick;
         Morph.MouseLeftButtonUp += Morph_Click;
         Stage.MouseMove += (_, e) => Pointer(e.GetPosition(Stage), false);
@@ -102,25 +127,39 @@ public partial class Well : Window
         SetState(State.Idle);
     }
 
+    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new QuietPeer(this, "SweaxMorph");
+
     // ── showing and hiding ──────────────────────────────────────────────────
 
+    /// <summary>
+    /// Shows the Well where it was asked for. Already showing somewhere else (waiting on another monitor, say), it
+    /// comes over instead of staying where it was.
+    /// </summary>
     public void Open(Opening how, IReadOnlyList<string>? files = null)
     {
+        long t0 = Stopwatch.GetTimestamp();
+        if (_warming != null) { EndWarm(true); Hide(); } // a real opening in the middle of the warm-up
         _autoHide.Stop();
         _openedAt = Environment.TickCount64;
-        _near = _pressed = false;
+        _near = _pressed = _pressedOutside = _hadFocus = false;
         // opened in the middle of a drag (Space in Explorer) it has no focus: it rests, and the haze follows the drag
         Rest(how == Opening.Drag && Win32.IsKeyDown(Win32.VK_LBUTTON));
         bool wasVisible = IsVisible && !_hiding;
         _hiding = false;
         if (_state is State.Done or State.Failed && files == null && how != Opening.Drag) Reset();
-        if (!wasVisible)
+        var hwnd = new WindowInteropHelper(this).EnsureHandle();
+        var target = Target(how);
+        BenchStep?.Invoke("start");
+        if (!wasVisible || !Covers(target))
         {
-            var hwnd = new WindowInteropHelper(this).EnsureHandle();
-            PlaceAtCursor(hwnd);
+            Place(hwnd, target);
+            BenchStep?.Invoke("place");
             Root.Opacity = 0;
             RootScale.ScaleX = RootScale.ScaleY = 0.82;
-            Show();
+            FitRegion(true);
+            BenchStep?.Invoke("shape");
+            if (!wasVisible) Show();
+            BenchStep?.Invoke("show");
             Springs.To(Root, OpacityProperty, 1, 520, 0.9);
             Springs.To(RootScale, ScaleTransform.ScaleXProperty, 1, 380, 0.55);
             Springs.To(RootScale, ScaleTransform.ScaleYProperty, 1, 380, 0.55);
@@ -128,12 +167,159 @@ public partial class Well : Window
         }
         Wake();
         if (files is { Count: > 0 }) Hold(files.ToList());
+        BenchStep?.Invoke("wake");
+        IntPtr before = Win32.GetForegroundWindow();
+        bool front = true;
         if (how != Opening.Drag && !BenchQuiet)
         {
-            Win32.ForceForeground(new WindowInteropHelper(this).Handle);
+            front = Win32.ForceForeground(hwnd);
             Activate();
             Focus();
         }
+        _frontAtOpen = Win32.GetForegroundWindow();
+        double ms = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
+        if (!BenchQuiet)
+        {
+            if (!front) Paths.Log($"opened without focus over {Layers.Describe(before)}");
+            if (ms > 120) Paths.Log($"slow open: {ms:0} ms ({how}) over {Layers.Describe(before)}");
+            _ = StayOnTop();
+        }
+    }
+
+    // ── warming up ──────────────────────────────────────────────────────────
+
+    EventHandler? _warming;
+
+    /// <summary>
+    /// The first opening after start used to build the window, load the fonts and compile the code while you waited
+    /// (~150 ms here). Done once at start instead, cloaked: Windows composes nothing of a cloaked window, but WPF
+    /// draws it exactly as on screen, so every surface is ready.
+    /// </summary>
+    internal void Warm(Action done)
+    {
+        if (IsVisible) { done(); return; }
+        var hwnd = new WindowInteropHelper(this).EnsureHandle();
+        Cloak(hwnd, true);
+        Place(hwnd, Pointer());
+        Root.Opacity = 1;
+        FitRegion(true);
+        Show();
+        long until = Environment.TickCount64 + 300;
+        _warming = (_, _) =>
+        {
+            if (Environment.TickCount64 < until) return;
+            EndWarm(false);
+            done();
+        };
+        CompositionTarget.Rendering += _warming;
+    }
+
+    /// <summary>Ends the warm-up; <paramref name="stay"/> when a real opening arrived in the middle of it.</summary>
+    void EndWarm(bool stay)
+    {
+        if (_warming == null) return;
+        CompositionTarget.Rendering -= _warming;
+        _warming = null;
+        if (!stay) Hide();
+        Cloak(_hwnd, false);
+        if (!stay) Reset();
+    }
+
+    static void Cloak(IntPtr hwnd, bool on)
+    {
+        int v = on ? 1 : 0;
+        Win32.DwmSetWindowAttribute(hwnd, 13, ref v, sizeof(int)); // DWMWA_CLOAK
+    }
+
+    /// <summary>The pointer, or the pretend one of the bench.</summary>
+    static Win32.POINT Pointer()
+    {
+        if (BenchCursor != null) return BenchCursor();
+        Win32.GetCursorPos(out var pt);
+        return pt;
+    }
+
+    /// <summary>Where Morph's centre should be for this kind of opening, in screen pixels.</summary>
+    Win32.POINT Target(Opening how)
+    {
+        var pt = Pointer();
+        // carried files and a right-click always meet Morph at the pointer; the shortcut follows the setting
+        if (how != Opening.Hotkey) return pt;
+        switch (Settings.Placement)
+        {
+            case "center": return MiddleOf(pt);
+            case "remember":
+                if (Settings.WellX is int x && Settings.WellY is int y)
+                {
+                    var spot = new Win32.POINT { X = x, Y = y };
+                    if (Win32.MonitorFromPoint(spot, Win32.MONITOR_DEFAULTTONULL) != IntPtr.Zero) return spot; // that monitor is still there
+                }
+                return MiddleOf(pt);
+            default: return pt;
+        }
+    }
+
+    static Win32.POINT MiddleOf(Win32.POINT pt)
+    {
+        var mi = new Win32.MONITORINFO { cbSize = Marshal.SizeOf<Win32.MONITORINFO>() };
+        Win32.GetMonitorInfo(Win32.MonitorFromPoint(pt, Win32.MONITOR_DEFAULTTONEAREST), ref mi);
+        var w = mi.rcWork;
+        return new Win32.POINT { X = (w.Left + w.Right) / 2, Y = (w.Top + w.Bottom) / 2 };
+    }
+
+    /// <summary>The Well already stands at <paramref name="target"/>: the pointer is on it, or Morph is near the spot.</summary>
+    bool Covers(Win32.POINT target)
+    {
+        if (_hwnd == IntPtr.Zero || !Win32.GetWindowRect(_hwnd, out var r)) return false;
+        var pt = Pointer();
+        if (pt.X >= r.Left && pt.X < r.Right && pt.Y >= r.Top && pt.Y < r.Bottom) return true;
+        double k = Win32.GetDpiForWindow(_hwnd) / 96.0;
+        double hx = r.Left + Heart.X * k - target.X, hy = r.Top + Heart.Y * k - target.Y;
+        return hx * hx + hy * hy < 90 * 90 * k * k;
+    }
+
+    /// <summary>
+    /// For the shortcut: is the Well where you are? Then the shortcut puts it away. Waiting on another monitor, or far
+    /// from the pointer while you were elsewhere, it is not — the shortcut brings it over instead of hiding it.
+    /// </summary>
+    public bool IsHere()
+    {
+        if (!Showing || _hwnd == IntPtr.Zero) return false;
+        var pt = Pointer();
+        if (Win32.GetWindowRect(_hwnd, out var r) && pt.X >= r.Left && pt.X < r.Right && pt.Y >= r.Top && pt.Y < r.Bottom) return true;
+        if (Win32.MonitorFromWindow(_hwnd, Win32.MONITOR_DEFAULTTONEAREST) != Win32.MonitorFromPoint(pt, Win32.MONITOR_DEFAULTTONEAREST)) return false;
+        // on this monitor: at its own spot (centre / where you left it), or in use right now
+        return Settings.Placement != "cursor" ? Covers(Target(Opening.Hotkey)) : IsActive;
+    }
+
+    /// <summary>Another always-on-top window that came later (a game, a video, an overlay) may cover Morph: raise it once and say what it was.</summary>
+    async Task StayOnTop()
+    {
+        await Task.Delay(90);
+        if (!IsVisible || _hwnd == IntPtr.Zero || PresentationSource.FromVisual(Morph) == null) return;
+        var c = Morph.PointToScreen(new Point(Morph.ActualWidth / 2, Morph.ActualHeight / 2));
+        IntPtr hit = Win32.GetAncestor(Win32.WindowFromPoint(new Win32.POINT { X = (int)c.X, Y = (int)c.Y }), Win32.GA_ROOT);
+        if (hit == IntPtr.Zero || hit == _hwnd || Layers.IsOurs(hit)) return;
+        Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, 0, 0, 0, 0, Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
+        Paths.Log($"Morph was covered by {Layers.Describe(hit)}; raised it");
+    }
+
+    /// <summary>The cloud dragged by hand: the Well moves, and the spot is kept for "where I left it".</summary>
+    void MoveByHand()
+    {
+        if (_hwnd == IntPtr.Zero || !Win32.IsKeyDown(Win32.VK_LBUTTON)) return;
+        Win32.GetWindowRect(_hwnd, out var before);
+        bool wasModal = _modal;
+        _modal = true;
+        try { DragMove(); }
+        catch (InvalidOperationException) { }
+        finally { _modal = wasModal; }
+        Win32.GetWindowRect(_hwnd, out var after);
+        if (Math.Abs(after.Left - before.Left) + Math.Abs(after.Top - before.Top) < 4) return;
+        double k = Win32.GetDpiForWindow(_hwnd) / 96.0;
+        Settings.WellX = (int)Math.Round(after.Left + Heart.X * k);
+        Settings.WellY = (int)Math.Round(after.Top + Heart.Y * k);
+        Settings.Save();
     }
 
     public void HideWell()
@@ -160,6 +346,121 @@ public partial class Well : Window
     }
 
     public bool Showing => IsVisible && !_hiding;
+
+    // ── the window's shape: what catches the mouse ──────────────────────────
+
+    readonly List<int> _shape = [], _shapeNew = [];
+    long _shapeAt;
+    // the bench counts how often the window is reshaped and what it costs
+    internal static int BenchRegionSets;
+    internal static double BenchRegionMs;
+
+    /// <summary>
+    /// A window that is not layered takes every click on its rectangle, transparent or not. So the window is cut to
+    /// what is drawn: the cloud while it shows (an ellipse), and always Morph, the petals, the words and the buttons
+    /// (rectangles around what each of them draws, so nothing that moves is ever cut). Resting, with the cloud faded,
+    /// only those catch the mouse and the windows below can be clicked — as with the old layered window.
+    /// Reshaping a window is not free, so it happens only when something reaches past the shape (at once) or after
+    /// the shape could shrink for a while (at most every 400 ms); the opening and closing zoom, which only ever makes
+    /// the Well smaller than its full size, is measured at full size and never reshapes it.
+    /// </summary>
+    void FitRegion(bool force = false)
+    {
+        if (_hwnd == IntPtr.Zero || AllowsTransparency) return; // a layered window lets clicks through its clear pixels by itself
+        long t0 = Stopwatch.GetTimestamp();
+        double k = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        _shapeNew.Clear();
+        _shapeNew.Add((int)Math.Round(k * 100));
+        bool cloud = !_resting || _near || Haze.Opacity >= 0.04;
+        if (!Root.IsDescendantOf(this))
+        {
+            // before the first layout the parts have no place yet: the whole cloud and the two buttons
+            Add(1, new Rect(-12, -2, 624, 714), k);
+            Add(0, new Rect(490, 28, 84, 44), k);
+        }
+        else
+        {
+            // in the Well's own coordinates (the window's, at full size: Root sits at its corner)
+            if (cloud) Add(1, new Rect(-12, -2, 624, 714), k);
+            Part(Morph, 6, k);
+            foreach (var p in _petals) if (p.Opacity > 0.01) Part(p, 3, k);
+            Part(Count, 12, k);
+            Part(SettingsButton, 3, k);
+            Part(CloseButton, 3, k);
+            if (Info.Opacity > 0.01)
+                foreach (var child in Info.Children) if (child is FrameworkElement fe) Part(fe, 3, k);
+            if (MoreSheet.IsVisible && MoreSheet.Opacity > 0.01)
+                Add(0, MoreSheet.TransformToAncestor(Root).TransformBounds(new Rect(MoreSheet.RenderSize)), k);
+        }
+        if (!force)
+        {
+            if (_shapeNew.SequenceEqual(_shape)) return;
+            if (Inside(_shapeNew, _shape) && Environment.TickCount64 - _shapeAt < 400) return;
+        }
+        _shape.Clear();
+        _shape.AddRange(_shapeNew);
+        _shapeAt = Environment.TickCount64;
+        IntPtr all = Win32.CreateRectRgn(0, 0, 0, 0);
+        for (int i = 1; i + 4 < _shape.Count; i += 5)
+        {
+            IntPtr one = _shape[i] == 1 ? Win32.CreateEllipticRgn(_shape[i + 1], _shape[i + 2], _shape[i + 3], _shape[i + 4])
+                                        : Win32.CreateRectRgn(_shape[i + 1], _shape[i + 2], _shape[i + 3], _shape[i + 4]);
+            Win32.CombineRgn(all, all, one, Win32.RGN_OR);
+            Win32.DeleteObject(one);
+        }
+        // no repaint asked: WPF draws its own frames, and a forced repaint would redraw the whole window
+        if (Win32.SetWindowRgn(_hwnd, all, false) == 0) Win32.DeleteObject(all); // on success Windows owns the region
+        BenchRegionSets++;
+        BenchRegionMs += (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
+    }
+
+    /// <summary>Every piece of <paramref name="next"/> lies inside a piece of <paramref name="now"/> (a rectangle inside the cloud counts).</summary>
+    static bool Inside(List<int> next, List<int> now)
+    {
+        if (now.Count == 0 || next[0] != now[0]) return false;
+        for (int i = 1; i + 4 < next.Count; i += 5)
+        {
+            bool inside = false;
+            for (int j = 1; j + 4 < now.Count && !inside; j += 5)
+            {
+                if (now[j] == 1 && next[i] == 0)
+                {
+                    // a rectangle inside an ellipse: its four corners are
+                    double cx = (now[j + 1] + now[j + 3]) / 2.0, cy = (now[j + 2] + now[j + 4]) / 2.0;
+                    double rx = (now[j + 3] - now[j + 1]) / 2.0, ry = (now[j + 4] - now[j + 2]) / 2.0;
+                    bool In(int x, int y) => (x - cx) * (x - cx) / (rx * rx) + (y - cy) * (y - cy) / (ry * ry) <= 1;
+                    inside = In(next[i + 1], next[i + 2]) && In(next[i + 3], next[i + 2]) && In(next[i + 1], next[i + 4]) && In(next[i + 3], next[i + 4]);
+                }
+                else if (now[j] == next[i] || now[j] == 0)
+                    inside = now[j + 1] <= next[i + 1] && now[j + 2] <= next[i + 2] && now[j + 3] >= next[i + 3] && now[j + 4] >= next[i + 4];
+            }
+            if (!inside) return false;
+        }
+        return true;
+    }
+
+    void Part(FrameworkElement e, double pad, double k)
+    {
+        if (!e.IsVisible || e.Opacity < 0.01 || !e.IsDescendantOf(Root)) return;
+        var b = VisualTreeHelper.GetDescendantBounds(e);
+        if (b.IsEmpty) return;
+        var r = e.TransformToAncestor(Root).TransformBounds(b);
+        r.Inflate(pad, pad);
+        Add(0, r, k);
+    }
+
+    /// <summary>A rectangle (0) or an ellipse (1) in device pixels, rounded outward to 8 px so small motions don't reshape the window.</summary>
+    void Add(int kind, Rect r, double k)
+    {
+        _shapeNew.Add(kind);
+        _shapeNew.Add((int)Math.Floor(r.Left * k / 8) * 8);
+        _shapeNew.Add((int)Math.Floor(r.Top * k / 8) * 8);
+        _shapeNew.Add((int)Math.Ceiling(r.Right * k / 8) * 8);
+        _shapeNew.Add((int)Math.Ceiling(r.Bottom * k / 8) * 8);
+    }
+
+    /// <summary>For the bench: as if you had clicked somewhere else.</summary>
+    internal void BenchElsewhere() => _pressedOutside = true;
 
     // ── resting while you are elsewhere ─────────────────────────────────────
 
@@ -244,26 +545,32 @@ public partial class Well : Window
     internal void DemoChoose(string target) { if (_petals.FirstOrDefault(x => x.Target == target) is { } p) Choose(p); }
     internal void DemoMore(string search) => OpenMore(search);
     internal void DemoHold(List<string> files) => Hold(files);
+    internal void DemoBounce() { Morph.Jump(0.45); Morph.Sparkles(5); }
     internal bool Working => _state == State.Working;
     internal static Point Center => Heart;
     internal FrameworkElement Surface => Root;
 
-    void PlaceAtCursor(IntPtr hwnd)
+    /// <summary>
+    /// Puts Morph's centre on <paramref name="target"/>, keeping Morph, the words and the buttons on that monitor.
+    /// Moving to a monitor with another scale, the window first lands there so WPF takes that monitor's DPI; only then
+    /// is the final spot worked out, in that monitor's pixels.
+    /// </summary>
+    void Place(IntPtr hwnd, Win32.POINT target)
     {
-        Win32.POINT pt;
-        if (BenchCursor != null) pt = BenchCursor();
-        else Win32.GetCursorPos(out pt);
-        var mon = Win32.MonitorFromPoint(pt, Win32.MONITOR_DEFAULTTONEAREST);
+        var mon = Win32.MonitorFromPoint(target, Win32.MONITOR_DEFAULTTONEAREST);
         var mi = new Win32.MONITORINFO { cbSize = Marshal.SizeOf<Win32.MONITORINFO>() };
         Win32.GetMonitorInfo(mon, ref mi);
-        double k = Win32.GetDpiForMonitor(mon, 0, out uint dpi, out _) == 0 ? dpi / 96.0 : 1;
+        uint want = Win32.GetDpiForMonitor(mon, 0, out uint dpi, out _) == 0 ? dpi : 96;
+        if (Win32.GetDpiForWindow(hwnd) != want)
+            Win32.SetWindowPos(hwnd, IntPtr.Zero, mi.rcWork.Left, mi.rcWork.Top, 0, 0, Win32.SWP_NOSIZE | Win32.SWP_NOZORDER | Win32.SWP_NOACTIVATE);
+        double k = (Win32.GetDpiForWindow(hwnd) is uint now and > 0 ? now : want) / 96.0;
         int w = (int)Math.Round(Width * k), h = (int)Math.Round(Height * k);
-        int x = pt.X - (int)(Heart.X * k), y = pt.Y - (int)(Heart.Y * k);
+        int x = target.X - (int)(Heart.X * k), y = target.Y - (int)(Heart.Y * k);
         var work = mi.rcWork;
         // the haze may run off the edge; Morph, the text and the settings and close buttons may not
         x = Math.Clamp(x, work.Left - (int)(40 * k), work.Right - w + (int)(28 * k));
         y = Math.Clamp(y, work.Top - (int)(30 * k), work.Bottom - h + (int)(20 * k));
-        Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, x, y, w, h, Win32.SWP_NOACTIVATE);
+        Win32.SetWindowPos(hwnd, BenchBottom ? Win32.HWND_BOTTOM : Win32.HWND_TOPMOST, x, y, w, h, Win32.SWP_NOACTIVATE);
     }
 
     void Wake()
@@ -287,10 +594,22 @@ public partial class Well : Window
         {
             var p = PointFromScreen(new Point(pt.X, pt.Y));
             if (_hot == null) Morph.LookAt(TranslatePoint(p, Morph));
-            // resting follows focus, also when Windows never gave the Well focus at all (then no Deactivated comes)
+            // resting follows where you are. Focus alone can't tell: Windows may show the Well without giving it focus,
+            // and then no Deactivated ever comes. So: it had focus and lost it, or the window in front changed, or a
+            // button went down somewhere else. Opened without focus and left alone, it keeps waiting with its cloud.
             if (_state is State.Idle or State.Picking && !_modal && Environment.TickCount64 - _openedAt > 600)
             {
-                bool rest = !(IsActive || BenchActive);
+                if (IsActive) _hadFocus = true;
+                if (!_pressedOutside && (Win32.IsKeyDown(Win32.VK_LBUTTON) || Win32.IsKeyDown(0x02)))
+                {
+                    IntPtr under = Win32.GetAncestor(Win32.WindowFromPoint(pt), Win32.GA_ROOT);
+                    if (under != _hwnd && !Layers.IsOurs(under)) _pressedOutside = true;
+                }
+                IntPtr front = Win32.GetForegroundWindow();
+                // and if nothing at all happens for a while (you walked away), it rests too, and dozes off after that
+                bool elsewhere = _hadFocus || _pressedOutside || (front != _frontAtOpen && front != _hwnd && !Layers.IsOurs(front))
+                    || (!BenchActive && Environment.TickCount64 - _openedAt > 20_000 && Win32.IdleMs() > 20_000);
+                bool rest = !(IsActive || BenchActive) && elsewhere;
                 if (rest != _resting) Rest(rest);
             }
             if (_resting)
@@ -300,21 +619,9 @@ public partial class Well : Window
                 if (_stillFor > 8 && !_near && _state != State.Working) Doze();
             }
         }
-        if (_moreOpen) DrawWave();
+        if (_moreOpen) Wave.Time = _t;
+        FitRegion();
         return true;
-    }
-
-    void DrawWave()
-    {
-        double w = Math.Max(10, Wave.ActualWidth > 0 ? Wave.ActualWidth : 480);
-        var g = new StreamGeometry();
-        using (var c = g.Open())
-        {
-            c.BeginFigure(new Point(0, 4), false, false);
-            for (double x = 4; x <= w; x += 4) c.LineTo(new Point(x, 4 + Math.Sin(x * 0.09 - _t * 5) * 2.2), true, true);
-        }
-        g.Freeze();
-        Wave.Data = g;
     }
 
     // ── states ──────────────────────────────────────────────────────────────
@@ -489,7 +796,7 @@ public partial class Well : Window
             {
                 Target = isMore ? "more" : pick!.Id,
                 Label = isMore ? Loc.T("Pick.More") : pick!.Label,
-                Hue = isMore ? (Theme.Dark ? "#6E6385" : "#B3A8C9") : Tint(pick!.Hue, i),
+                Hue = isMore ? Theme.MoreHue : Tint(pick!.Hue, i),
                 Glyph = isMore ? "" : pick!.Glyph,
                 Badge = isMore ? null : BadgeFor(pick!.Route),
                 Route = pick?.Route,
@@ -954,7 +1261,8 @@ public partial class Well : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var icon = new Image { Width = 32, Height = 32, Source = ShellIcon(o.Path), VerticalAlignment = VerticalAlignment.Center };
+        var icon = new Image { Width = 32, Height = 32, VerticalAlignment = VerticalAlignment.Center };
+        Icons.Load(o.Path, src => icon.Source = src); // the shell can take a while to find an icon: never on the UI thread
         var name = new TextBlock { Text = System.IO.Path.GetFileName(o.Path), FontSize = 14, FontWeight = FontWeights.ExtraBold, TextTrimming = TextTrimming.CharacterEllipsis };
         string delta = o.Before > 0 && o.After > 0 ? Math.Round((o.After - o.Before) * 100.0 / o.Before) is var pct && pct != 0 ? $"  ·  {(pct > 0 ? "+" : "−")}{Math.Abs(pct)}%" : "" : "";
         var sizes = new TextBlock { Text = $"{Loc.Size(o.Before)} → {Loc.Size(o.After)}{delta}", FontSize = 12, FontWeight = FontWeights.Bold, Foreground = Theme.Brush("Ink2"), Margin = new Thickness(0, 1, 0, 0) };
@@ -997,7 +1305,7 @@ public partial class Well : Window
         return grid;
     }
 
-    static ImageSource? ShellIcon(string path)
+    internal static ImageSource? ShellIcon(string path)
     {
         var info = new Win32.SHFILEINFO();
         IntPtr r = Win32.SHGetFileInfo(path, 0, ref info, (uint)Marshal.SizeOf<Win32.SHFILEINFO>(), Win32.SHGFI_ICON | Win32.SHGFI_LARGEICON);
@@ -1011,15 +1319,16 @@ public partial class Well : Window
         finally { Win32.DestroyIcon(info.hIcon); }
     }
 
-    static void OpenPath(string path)
+    // starting another program can take a moment: off the UI thread, so Morph never stalls
+    static void OpenPath(string path) => Task.Run(() =>
     {
         try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); } catch (Exception ex) { Paths.Log("open: " + ex.Message); }
-    }
+    });
 
-    static void Reveal(string path)
+    static void Reveal(string path) => Task.Run(() =>
     {
         try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); } catch (Exception ex) { Paths.Log("reveal: " + ex.Message); }
-    }
+    });
 
     void Stop_Click(object sender, RoutedEventArgs e) => _cts?.Cancel();
 

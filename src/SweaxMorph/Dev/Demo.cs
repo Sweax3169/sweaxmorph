@@ -32,6 +32,7 @@ public static class Demo
             if (Arg(args, "--selftest") is { } dir) await SelfTest(dir, Arg(args, "--only"));
             else if (Arg(args, "--icon") is { } iconDir) Icon(iconDir);
             else if (Arg(args, "--shots") is { } shotDir) await Shots.Render(app, shotDir, args);
+            else if (Arg(args, "--palettes") is { } palDir) await Shots.Palettes(app, palDir, args);
             else if (Arg(args, "--formats") is { } catalogDir) Catalog(catalogDir);
         }
         catch (Exception ex)

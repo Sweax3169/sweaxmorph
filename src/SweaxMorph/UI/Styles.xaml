@@ -15,7 +15,7 @@
                             <Ellipse>
                                 <Ellipse.Fill>
                                     <LinearGradientBrush StartPoint="0.2,0" EndPoint="0.8,1">
-                                        <GradientStop Color="#B9AEFF" Offset="0"/>
+                                        <GradientStop Color="{DynamicResource SoftBubbleColor}" Offset="0"/>
                                         <GradientStop Color="{DynamicResource AccentColor}" Offset="1"/>
                                     </LinearGradientBrush>
                                 </Ellipse.Fill>
@@ -111,7 +111,7 @@
                                 <Ellipse.RenderTransform><ScaleTransform x:Name="FS" ScaleX="0.3" ScaleY="0.3"/></Ellipse.RenderTransform>
                                 <Ellipse.Fill>
                                     <LinearGradientBrush StartPoint="0.2,0" EndPoint="0.8,1">
-                                        <GradientStop Color="#C8BEFF" Offset="0"/>
+                                        <GradientStop Color="{DynamicResource SoftDropColor}" Offset="0"/>
                                         <GradientStop Color="{DynamicResource AccentColor}" Offset="1"/>
                                     </LinearGradientBrush>
                                 </Ellipse.Fill>

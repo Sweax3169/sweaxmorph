@@ -34,10 +34,10 @@
         <!-- candy light in the corners -->
         <Canvas IsHitTestVisible="False" ClipToBounds="True" Grid.ColumnSpan="2">
             <Ellipse Width="520" Height="520" Canvas.Left="-200" Canvas.Top="-220" Opacity="0.55">
-                <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#66CDB8FF" Offset="0"/><GradientStop Color="#00CDB8FF" Offset="1"/></RadialGradientBrush></Ellipse.Fill>
+                <Ellipse.Fill><RadialGradientBrush><GradientStop Color="{DynamicResource GlowA}" Offset="0"/><GradientStop Color="{DynamicResource GlowAClear}" Offset="1"/></RadialGradientBrush></Ellipse.Fill>
             </Ellipse>
             <Ellipse Width="560" Height="560" Canvas.Left="480" Canvas.Top="380" Opacity="0.5">
-                <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#55FF8FC1" Offset="0"/><GradientStop Color="#00FF8FC1" Offset="1"/></RadialGradientBrush></Ellipse.Fill>
+                <Ellipse.Fill><RadialGradientBrush><GradientStop Color="{DynamicResource GlowB}" Offset="0"/><GradientStop Color="{DynamicResource GlowBClear}" Offset="1"/></RadialGradientBrush></Ellipse.Fill>
             </Ellipse>
         </Canvas>
 
@@ -76,6 +76,28 @@
                 <ToggleButton x:Name="DragToggle" Style="{StaticResource Row}" Click="Toggle_Click"/>
                 <TextBlock x:Name="DragHint" Style="{StaticResource Hint}"/>
 
+                <!-- where Morph opens -->
+                <TextBlock x:Name="HPlace" Style="{StaticResource H}"/>
+                <TextBlock x:Name="PlaceHint" Style="{StaticResource Hint}" Margin="0"/>
+                <StackPanel Orientation="Horizontal" Margin="-7,10,0,0">
+                    <ToggleButton x:Name="PlaceCursor" Style="{StaticResource Drop}" FontSize="14" Click="Place_Click"/>
+                    <ToggleButton x:Name="PlaceCenter" Style="{StaticResource Drop}" FontSize="14" Click="Place_Click"/>
+                    <ToggleButton x:Name="PlaceRemember" Style="{StaticResource Drop}" FontSize="14" Click="Place_Click"/>
+                </StackPanel>
+                <ToggleButton x:Name="AdminToggle" Style="{StaticResource Row}" Click="Admin_Click"/>
+                <TextBlock x:Name="AdminHint" Style="{StaticResource Hint}"/>
+                <TextBlock x:Name="AdminStatus" Style="{StaticResource Hint}" Foreground="{DynamicResource Accent}" FontWeight="Bold" Visibility="Collapsed"/>
+
+                <!-- look: theme and palette -->
+                <TextBlock x:Name="HLook" Style="{StaticResource H}"/>
+                <TextBlock x:Name="LookHint" Style="{StaticResource Hint}" Margin="0"/>
+                <StackPanel Orientation="Horizontal" Margin="-7,12,0,0">
+                    <ToggleButton x:Name="ThemeSystem" Style="{StaticResource Drop}" FontSize="14" Click="Theme_Click"/>
+                    <ToggleButton x:Name="ThemeLight" Style="{StaticResource Drop}" FontSize="14" Click="Theme_Click"/>
+                    <ToggleButton x:Name="ThemeDark" Style="{StaticResource Drop}" FontSize="14" Click="Theme_Click"/>
+                </StackPanel>
+                <WrapPanel x:Name="PaletteTiles" Margin="0,14,0,0"/>
+
                 <!-- explorer -->
                 <TextBlock x:Name="HExplorer" Style="{StaticResource H}"/>
                 <ToggleButton x:Name="MenuToggle" Style="{StaticResource Row}" Margin="-7,6,0,0" Click="Toggle_Click"/>
@@ -113,18 +135,11 @@
                 <ToggleButton x:Name="FolderToggle" Style="{StaticResource Row}" Click="Toggle_Click"/>
                 <Grid Margin="0,18,0,0">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
                     <TextBlock x:Name="LangLabel" FontSize="14" FontWeight="Black" VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <ToggleButton x:Name="LangAuto" Style="{StaticResource Drop}" FontSize="14" Click="Lang_Click"/>
                         <ToggleButton x:Name="LangEn" Style="{StaticResource Drop}" FontSize="14" Content="English" Click="Lang_Click"/>
                         <ToggleButton x:Name="LangTr" Style="{StaticResource Drop}" FontSize="14" Content="Türkçe" Click="Lang_Click"/>
-                    </StackPanel>
-                    <TextBlock x:Name="ThemeLabel" Grid.Row="1" FontSize="14" FontWeight="Black" VerticalAlignment="Center" Margin="0,12,0,0"/>
-                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,12,0,0">
-                        <ToggleButton x:Name="ThemeSystem" Style="{StaticResource Drop}" FontSize="14" Click="Theme_Click"/>
-                        <ToggleButton x:Name="ThemeLight" Style="{StaticResource Drop}" FontSize="14" Click="Theme_Click"/>
-                        <ToggleButton x:Name="ThemeDark" Style="{StaticResource Drop}" FontSize="14" Click="Theme_Click"/>
                     </StackPanel>
                 </Grid>
 

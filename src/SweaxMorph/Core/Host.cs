@@ -131,8 +131,9 @@ public sealed class TrayIcon : IDisposable
 }
 
 /// <summary>
-/// Files handed over by later launches (the right-click menu starts one per file, Send to one for all):
-/// they arrive over a named pipe and are gathered for a moment, so ten files open one well, not ten.
+/// Requests from later launches over a named pipe. Files (the right-click menu starts one launch per file, Send to one
+/// for all) are gathered for a moment, so ten files open one well, not ten. Anything else — --toggle, --quit,
+/// --settings — goes through at once, and in order: 1.0 held every request 280 ms and kept only the last one.
 /// </summary>
 public sealed class Ipc : IDisposable
 {
@@ -154,26 +155,44 @@ public sealed class Ipc : IDisposable
     {
         while (!_stop.IsCancellationRequested)
         {
+            NamedPipeServerStream? server = null;
             try
             {
-                using var server = new NamedPipeServerStream(PipeName, PipeDirection.In, NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                server = new NamedPipeServerStream(PipeName, PipeDirection.In, NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
                 await server.WaitForConnectionAsync(_stop.Token);
-                using var reader = new StreamReader(server, Encoding.UTF8);
+                // the next launch can connect while this one is still being read
+                var mine = server;
+                server = null;
+                _ = Task.Run(() => Serve(mine));
+            }
+            catch (OperationCanceledException) { server?.Dispose(); return; }
+            catch (Exception ex) { server?.Dispose(); Paths.Log("pipe: " + ex.Message); await Task.Delay(200); }
+        }
+    }
+
+    async Task Serve(NamedPipeServerStream server)
+    {
+        try
+        {
+            using (server)
+            using (var reader = new StreamReader(server, Encoding.UTF8))
+            {
                 string? command = await reader.ReadLineAsync();
                 var files = new List<string>();
                 string? line;
                 while ((line = await reader.ReadLineAsync()) != null) if (line.Length > 0) files.Add(line);
+                if (command is null or "") return;
+                if (command != "convert") { Received?.Invoke(command, files); return; }
                 lock (_gate)
                 {
-                    _command = command ?? "";
+                    _command = command;
                     _batch.AddRange(files.Where(f => !_batch.Contains(f, StringComparer.OrdinalIgnoreCase)));
                     _flush?.Dispose();
                     _flush = new Timer(_ => Flush(), null, 280, Timeout.Infinite);
                 }
             }
-            catch (OperationCanceledException) { return; }
-            catch (Exception ex) { Paths.Log("pipe: " + ex.Message); await Task.Delay(200); }
         }
+        catch (Exception ex) { Paths.Log("pipe: " + ex.Message); }
     }
 
     void Flush()
@@ -196,6 +215,8 @@ public sealed class Ipc : IDisposable
         {
             using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
             client.Connect(1500);
+            // this launch came from you (a key, a click): let the running SweaxMorph bring its window to the front
+            if (Win32.GetNamedPipeServerProcessId(client.SafePipeHandle.DangerousGetHandle(), out uint pid)) Win32.AllowSetForegroundWindow(pid);
             using var w = new StreamWriter(client, new UTF8Encoding(false));
             w.WriteLine(command);
             foreach (var f in files) w.WriteLine(f);

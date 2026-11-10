@@ -80,6 +80,8 @@ public sealed class KeyboardHook : IDisposable
     public Hotkey Hotkey { get; set; } = Hotkey.Parse("Win+Alt+F");
     /// <summary>Space while the left button carries files in Explorer opens the well under them.</summary>
     public volatile bool DragTrigger = true;
+    /// <summary>When set, the shortcut is only taken while this says yes (the administrator helper: only over administrator windows).</summary>
+    public Func<bool>? Gate { get; set; }
 
     /// <summary>Raised on the hook thread — handlers must only post work elsewhere.</summary>
     public event Action? Pressed;
@@ -108,7 +110,15 @@ public sealed class KeyboardHook : IDisposable
         _ready.Set();
         while (Win32.GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0)
         {
-            if (msg.message == WM_REHOOK) { Uninstall(); Install(); continue; }
+            if (msg.message == WM_REHOOK)
+            {
+                // the new hook goes in before the old one comes out: no key slips through in between
+                IntPtr old = _hook;
+                Install();
+                if (_hook == IntPtr.Zero) _hook = old;
+                else if (old != IntPtr.Zero) Win32.UnhookWindowsHookEx(old);
+                continue;
+            }
             Win32.TranslateMessage(ref msg);
             Win32.DispatchMessage(ref msg);
         }
@@ -118,8 +128,10 @@ public sealed class KeyboardHook : IDisposable
     void Install()
     {
         _hook = Win32.SetWindowsHookEx(Win32.WH_KEYBOARD_LL, _proc, Win32.GetModuleHandle(null), 0);
-        if (_hook == IntPtr.Zero) Paths.Log("keyboard hook failed: " + Marshal.GetLastWin32Error());
+        if (_hook == IntPtr.Zero && !_failedOnce) { _failedOnce = true; Paths.Log("keyboard hook failed: " + Marshal.GetLastWin32Error()); }
     }
+
+    bool _failedOnce;
 
     void Uninstall()
     {
@@ -130,11 +142,15 @@ public sealed class KeyboardHook : IDisposable
     /// <summary>Windows silently removes hooks that ever time out; re-arming now and then keeps us alive for years.</summary>
     public void Rearm() => Win32.PostThreadMessage(_threadId, WM_REHOOK, IntPtr.Zero, IntPtr.Zero);
 
-    IntPtr Callback(int nCode, IntPtr wParam, IntPtr lParam)
+    /// <summary>
+    /// Runs for every key pressed anywhere, so it must never be slow: Windows silently removes a hook that once takes
+    /// too long. It allocates nothing (no garbage collection can start from here) and only posts work elsewhere.
+    /// </summary>
+    unsafe IntPtr Callback(int nCode, IntPtr wParam, IntPtr lParam)
     {
         if (nCode >= 0)
         {
-            var kb = Marshal.PtrToStructure<Win32.KBDLLHOOKSTRUCT>(lParam);
+            var kb = *(Win32.KBDLLHOOKSTRUCT*)lParam;
             int msg = (int)wParam;
             bool down = msg is Win32.WM_KEYDOWN or Win32.WM_SYSKEYDOWN;
             bool up = msg is Win32.WM_KEYUP or Win32.WM_SYSKEYUP;
@@ -161,7 +177,7 @@ public sealed class KeyboardHook : IDisposable
                 {
                     if (_swallowKey == vk) return 1; // auto-repeat while held
                     var hk = Hotkey;
-                    if (vk == hk.Key && ModifiersMatch(hk)) { Swallow(hk); Pressed?.Invoke(); return 1; }
+                    if (vk == hk.Key && ModifiersMatch(hk) && (Gate == null || Gate())) { Swallow(hk); Pressed?.Invoke(); return 1; }
                     if (DragTrigger && vk == 0x20 && Win32.IsKeyDown(0x01) && ExplorerInFront()) { _swallowKey = vk; DragTapped?.Invoke(); return 1; }
                 }
                 if (up && _swallowKey == vk)

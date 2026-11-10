@@ -12,7 +12,7 @@ namespace SweaxMorph;
 
 public partial class App : Application
 {
-    const string InstanceName = "SweaxMorph.SingleInstance.3b9e";
+    const string InstanceName = Launch.InstanceName;
     Mutex? _instance;
 
     public static App Instance => (App)Current;
@@ -25,8 +25,17 @@ public partial class App : Application
     SettingsWindow? _settings;
     Window? _menuHost;
     readonly DispatcherTimer _themeDelay = new() { Interval = TimeSpan.FromMilliseconds(300) };
-    readonly DispatcherTimer _rearm = new() { Interval = TimeSpan.FromMinutes(10) };
-    readonly DispatcherTimer _trim = new(DispatcherPriority.ApplicationIdle) { Interval = TimeSpan.FromSeconds(4) };
+    // Windows drops a keyboard hook without a word if it ever answers late (a busy disk, a long pause): re-arm it often,
+    // it costs nothing. 1.0 re-armed every 10 minutes, so one slow moment could leave the shortcut dead for that long.
+    readonly DispatcherTimer _rearm = new() { Interval = TimeSpan.FromSeconds(20) };
+    // memory goes back only after the PC has been left alone for 10 minutes (1.0 emptied it after every close, so the
+    // next open, and every key the hook saw, had to page it all back in)
+    readonly DispatcherTimer _idleTrim = new(DispatcherPriority.ApplicationIdle) { Interval = TimeSpan.FromMinutes(2) };
+    bool _trimmed;
+    long _lastHotkey;
+
+    /// <summary>The Well has been built and drawn once, invisibly, so the first open is as quick as any other.</summary>
+    internal bool WarmedUp { get; private set; }
 
     public static IReadOnlyList<Converter> AllConverters() =>
     [
@@ -40,10 +49,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
         var args = e.Args;
-        bool Has(string a) => args.Any(x => x.Equals(a, StringComparison.OrdinalIgnoreCase));
-        // values of options that take one are never files to convert
-        var valued = new HashSet<int>(args.Select((a, i) => (a, i)).Where(x => x.a is "--instance" or "--data" or "--bench").Select(x => x.i + 1));
-        var files = args.Where((a, i) => !valued.Contains(i) && !a.StartsWith("--") && (File.Exists(a) || Directory.Exists(a))).Select(Path.GetFullPath).ToList();
+        var clock = Stopwatch.StartNew();
+        bool Has(string a) => Launch.Has(args, a);
+        var files = Launch.Files(args);
 
         if (Arg(args, "--uia-listen") is { } listen)
         {
@@ -51,7 +59,7 @@ public partial class App : Application
             Shutdown();
             return;
         }
-        if (Has("--selftest") || Has("--formats") || Has("--icon") || Has("--shots"))
+        if (Has("--selftest") || Has("--formats") || Has("--icon") || Has("--shots") || Has("--palettes"))
         {
             Dev.Demo.Run(this, args);
             return;
@@ -61,14 +69,15 @@ public partial class App : Application
         string? instance = Arg(args, "--instance");
         bool isolated = instance != null;
         bool bench = Has("--bench");
-        if (isolated) Ipc.Suffix = "." + instance;
+        if (isolated) Ipc.Suffix = Launch.Suffix(args);
+        if (bench) Dev.Bench.Prepare();
 
         _instance = new Mutex(true, InstanceName + Ipc.Suffix, out bool first);
         if (!first)
         {
             // already running: hand over the files (or the request) and leave
             // --toggle is the shortcut for macro keys and launchers that run a program instead of pressing keys
-            Ipc.Send(Has("--quit") ? "quit" : Has("--settings") ? "settings" : Has("--toggle") ? "toggle" : files.Count > 0 ? "convert" : "open", files);
+            if (Launch.Command(args, files) is { } command) Ipc.Send(command, files);
             Shutdown();
             return;
         }
@@ -93,14 +102,13 @@ public partial class App : Application
 
         Settings = Settings.Load();
         Loc.Init(Settings.Language);
-        Theme.Apply(Settings.Theme);
-        Engines.Detect();
-        Planner.Build(AllConverters());
+        Theme.Apply(Settings.Theme, Settings.Palette);
+        long tSettings = clock.ElapsedMilliseconds;
 
         _host = new HostWindow();
         _host.ThemeChanged += () => { _themeDelay.Stop(); _themeDelay.Start(); };
         _host.SessionUnlocked += () => _hook?.Rearm();
-        _themeDelay.Tick += (_, _) => { _themeDelay.Stop(); Theme.Apply(Settings.Theme); };
+        _themeDelay.Tick += (_, _) => { _themeDelay.Stop(); Theme.Apply(Settings.Theme, Settings.Palette); };
         if (!bench)
         {
             _tray = new TrayIcon(_host, Loc.T("Tray.Tip"));
@@ -108,7 +116,7 @@ public partial class App : Application
             _tray.RightClick += ShowTrayMenu;
 
             _hook = new KeyboardHook();
-            _hook.Pressed += () => Dispatcher.BeginInvoke(() => ToggleWell(), DispatcherPriority.Send);
+            _hook.Pressed += () => Dispatcher.BeginInvoke(() => ToggleWell(fromHook: true), DispatcherPriority.Send);
             _hook.DragTapped += () => Dispatcher.BeginInvoke(() => OpenWell(Well.Opening.Drag, null), DispatcherPriority.Send);
             ApplyHotkey();
             _rearm.Tick += (_, _) => _hook?.Rearm();
@@ -116,15 +124,22 @@ public partial class App : Application
         }
 
         _ipc = new Ipc();
-        _ipc.Received += (command, list) => Dispatcher.BeginInvoke(() => Handle(command, list));
+        _ipc.Received += (command, list) => Dispatcher.BeginInvoke(() => Handle(command, list), DispatcherPriority.Send);
         _ipc.Start();
+        long tReady = clock.ElapsedMilliseconds;
 
-        if (bench)
+        // the shortcut works from here on; the converters' map and the first drawing of the Well follow
+        Engines.Detect();
+        Planner.Build(AllConverters());
+        long tPlanner = clock.ElapsedMilliseconds;
+        Dispatcher.BeginInvoke(() => WarmUp(() =>
         {
+            WarmedUp = true;
+            Paths.Log($"started in {clock.ElapsedMilliseconds} ms (settings {tSettings}, shortcut ready {tReady}, formats {tPlanner}, Morph drawn {clock.ElapsedMilliseconds}) · {(Process.GetCurrentProcess().StartTime is var st ? (DateTime.Now - st).TotalMilliseconds : 0):0} ms since the process began");
             // ContextIdle: the bench's own steps are told apart from the app's work by their priority
-            Dispatcher.BeginInvoke(() => Dev.Bench.Run(this, args), DispatcherPriority.ContextIdle);
-            return;
-        }
+            if (bench) Dispatcher.BeginInvoke(() => Dev.Bench.Run(this, args), DispatcherPriority.ContextIdle);
+        }), DispatcherPriority.ApplicationIdle);
+        if (bench) return;
         if (isolated) { }
         else if (firstRun)
         {
@@ -140,19 +155,22 @@ public partial class App : Application
             if (Settings.ContextMenu && !Shell.ContextMenuInstalled()) Shell.ContextMenu(true);
         }
 
-        _trim.Tick += (_, _) => { _trim.Stop(); if (_well is not { IsVisible: true } && _settings == null) Trim(); };
-        _trim.Start();
+        if (Settings.AdminKeys) _ = Elevation.StartHelper();
+
+        _idleTrim.Tick += (_, _) =>
+        {
+            long idle = Win32.IdleMs();
+            if (idle < 60_000) _trimmed = false;
+            else if (!_trimmed && idle > 10 * 60_000 && _well is not { IsVisible: true } && _settings == null) { _trimmed = true; Trim(); }
+        };
+        _idleTrim.Start();
 
         if (files.Count > 0) OpenWell(Well.Opening.Files, files);
         else if (Has("--settings")) ShowSettings();
         else if (!Has("--background")) OpenWell(Well.Opening.Hotkey, null);
     }
 
-    static string? Arg(string[] args, string name)
-    {
-        int i = Array.FindIndex(args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
-        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
-    }
+    static string? Arg(string[] args, string name) => Launch.Arg(args, name);
 
     internal void Handle(string command, List<string> files)
     {
@@ -161,8 +179,16 @@ public partial class App : Application
             case "quit": Quit(); break;
             case "settings": ShowSettings(); break;
             case "toggle": ToggleWell(); break;
+            case "toggle-admin": ToggleWell(fromHelper: true); break;
             default: OpenWell(files.Count > 0 ? Well.Opening.Files : Well.Opening.Hotkey, files.Count > 0 ? files : null); break;
         }
+    }
+
+    /// <summary>Draws the Well once, invisibly; whatever happens, <paramref name="done"/> runs.</summary>
+    void WarmUp(Action done)
+    {
+        try { GetWell().Warm(done); }
+        catch (Exception ex) { Paths.Log("warm-up: " + ex); done(); }
     }
 
     internal Well GetWell()
@@ -170,17 +196,24 @@ public partial class App : Application
         if (_well != null) return _well;
         _well = new Well();
         _well.Status += s => _tray?.SetTip(s == null ? Loc.T("Tray.Tip") : "SweaxMorph — " + s);
-        _well.IsVisibleChanged += (_, _) => { if (!_well.IsVisible) { _trim.Stop(); _trim.Start(); } };
         return _well;
     }
 
     public void OpenWell(Well.Opening how, IReadOnlyList<string>? files) => GetWell().Open(how, files);
 
-    internal void ToggleWell()
+    /// <summary>
+    /// The shortcut. Morph with you (under the pointer, or in use on this monitor): it goes away. Morph waiting
+    /// somewhere else — on another monitor, or far off while you were busy — comes to you instead of hiding unseen.
+    /// </summary>
+    internal void ToggleWell(bool fromHook = false, bool fromHelper = false)
     {
+        // the administrator helper and our own hook can both see one press (a window that is administrator-ish to one
+        // and not the other): the second report within a moment is the same press
+        long now = Environment.TickCount64;
+        if ((fromHook || fromHelper) && now - _lastHotkey < 300) return;
+        if (fromHook || fromHelper) _lastHotkey = now;
         var w = GetWell();
-        // the shortcut puts Morph away again, also while it waits on top of another window
-        if (w.Showing) w.HideWell();
+        if (w.Showing && w.IsHere()) w.HideWell();
         else w.Open(Well.Opening.Hotkey);
     }
 
@@ -191,7 +224,12 @@ public partial class App : Application
     public void Relabel()
     {
         _tray?.SetTip(Loc.T("Tray.Tip"));
-        if (_well is { IsVisible: false, Busy: false }) { _well.Close(); _well = null; }
+        if (_well is { IsVisible: false, Busy: false })
+        {
+            _well.Close();
+            _well = null;
+            Dispatcher.BeginInvoke(() => WarmUp(() => { }), DispatcherPriority.ApplicationIdle); // ready again for the first open
+        }
     }
 
     public void ApplyHotkey()
@@ -238,7 +276,7 @@ public partial class App : Application
         menu.IsOpen = true;
     }
 
-    /// <summary>Resting in the tray costs next to nothing: give memory back while nobody is looking.</summary>
+    /// <summary>Resting in the tray costs next to nothing: give memory back once the PC has been left alone for a while.</summary>
     static void Trim()
     {
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
@@ -248,6 +286,7 @@ public partial class App : Application
 
     public void Quit()
     {
+        Elevation.StopHelper(); // the helper would leave by itself within seconds; an update can't wait for that
         _ipc?.Dispose();
         _hook?.Dispose();
         _tray?.Dispose();

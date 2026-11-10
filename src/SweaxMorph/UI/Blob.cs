@@ -38,19 +38,26 @@ public sealed class Blob : FrameworkElement
     readonly List<Particle> _particles = [];
     readonly Point[] _pts = new Point[N];
     readonly Func<double, bool> _stepper;
+    // Morph is drawn into this drawing, which the element shows; redrawing it every frame needs no layout pass
+    // (InvalidateVisual would run one each frame, and with it a UI Automation report of the whole window)
+    readonly DrawingGroup _drawing = new();
     bool _running, _dozing;
     double _t, _nextBlink = 2.5, _blinkUntil = -1, _sparkleClock, _bubbleClock, _eyesAwake = 1;
 
     Sp _squash = new(0), _lift = new(0), _eyeOpen = new(1), _happy = new(0), _mouthOpen = new(0), _mouthCurve = new(0.6),
        _mouthWide = new(0.22), _reach = new(0), _fill = new(0), _lookX = new(0), _lookY = new(0), _sweat = new(0), _hover = new(0);
     double _reachAngle;
-    Color _c1 = Hex("#CDB8FF"), _c2 = Hex("#FF8FC1"), _t1 = Hex("#CDB8FF"), _t2 = Hex("#FF8FC1"), _liquid = Hex("#8B7CFF"), _liquidTarget = Hex("#8B7CFF");
+    Color _c1 = Hex(Theme.Palette.GelTop), _c2 = Hex(Theme.Palette.GelBottom), _t1 = Hex(Theme.Palette.GelTop), _t2 = Hex(Theme.Palette.GelBottom),
+          _liquid = Hex(Theme.Palette.Light.Accent), _liquidTarget = Hex(Theme.Palette.Light.Accent);
+    // which of the palette's own gels Morph wears (none while it wears a file's colour), so a new palette can take over
+    enum Gel { Own, Glass, File }
+    Gel _gel = Gel.Own;
     Mood _mood = Mood.Idle;
 
     /// <summary>Body radius at rest, in DIPs.</summary>
     public double Radius { get; set; } = 70;
     /// <summary>Dark ink for the face (the same in both themes: Morph's face is printed on its gel).</summary>
-    public Color Ink { get; set; } = Hex("#2B2140");
+    public Color Ink { get; set; } = Hex(Theme.Palette.Face);
     /// <summary>For recordings: render a given time instead of the clock.</summary>
     public bool Frozen { get; set; }
     /// <summary>No breathing wobble: a perfectly calm Morph (the app icon).</summary>
@@ -64,7 +71,18 @@ public sealed class Blob : FrameworkElement
         _stepper = Step;
         IsHitTestVisible = true;
         IsVisibleChanged += (_, _) => Wake();
-        Loaded += (_, _) => Wake();
+        Loaded += (_, _) => { Theme.Changed += OnTheme; Wake(); };
+        Unloaded += (_, _) => Theme.Changed -= OnTheme;
+    }
+
+    /// <summary>A new palette: Morph's own gel and its face ink follow it at once (a file's colour stays).</summary>
+    void OnTheme()
+    {
+        Ink = Hex(Theme.Palette.Face);
+        if (_gel == Gel.Own) TintDefault();
+        else if (_gel == Gel.Glass) Glass();
+        Wake();
+        Redraw();
     }
 
     public Mood Mood
@@ -111,11 +129,13 @@ public sealed class Blob : FrameworkElement
     }
 
     /// <summary>The colours of the gel. Morph takes on the colour of the files it holds.</summary>
-    public void Tint(Color top, Color bottom) { _t1 = top; _t2 = bottom; Wake(); }
+    public void Tint(Color top, Color bottom) { _t1 = top; _t2 = bottom; _gel = Gel.File; Wake(); }
     public void Tint(string hue) => Tint(Mix(Hex(hue), Colors.White, 0.42), Hex(hue));
-    public void TintDefault() => Tint(Hex("#CDB8FF"), Hex("#FF8FC1"));
+    public void TintDefault() { Tint(Hex(Theme.Palette.GelTop), Hex(Theme.Palette.GelBottom)); _gel = Gel.Own; }
     /// <summary>Clear, milky gel while working, so the liquid inside shows in its own colour.</summary>
-    public void Glass() => Tint(Hex("#F4F0FB"), Hex("#D6CCEC"));
+    public void Glass() { Tint(Hex(Theme.Palette.GlassTop), Hex(Theme.Palette.GlassBottom)); _gel = Gel.Glass; }
+    /// <summary>Jumps straight to the colours it is heading for (a still picture, a palette swatch).</summary>
+    public void SnapColours() { _c1 = _t1; _c2 = _t2; _liquid = _liquidTarget; Redraw(); }
 
     /// <summary>How full of liquid (0..1), and its colour (the target format's).</summary>
     public void SetFill(double level, string? hue = null)
@@ -267,8 +287,10 @@ public sealed class Blob : FrameworkElement
             if (p.Type == 2) p.X += Math.Sin(_t * 6 + p.Size) * 10 * dt;
         }
 
-        InvalidateVisual();
-        bool settled = _particles.Count == 0 && Math.Abs(_squash.V) < 0.01 && Math.Abs(_lift.V) < 0.05 && _dv.All(v => Math.Abs(v) < 0.002)
+        Redraw();
+        bool still = true;
+        for (int i = 0; i < N; i++) if (Math.Abs(_dv[i]) >= 0.002) { still = false; break; }
+        bool settled = still && _particles.Count == 0 && Math.Abs(_squash.V) < 0.01 && Math.Abs(_lift.V) < 0.05
             && Math.Abs(_eyeOpen.X - _eyeOpen.T) < 0.004 && Math.Abs(_eyeOpen.V) < 0.01;
         // keep breathing while on screen: Morph is alive (a dozing Morph holds still)
         return (IsVisible && !_dozing) || !settled;
@@ -278,7 +300,19 @@ public sealed class Blob : FrameworkElement
 
     protected override void OnRender(DrawingContext dc)
     {
+        Redraw();
+        dc.DrawDrawing(_drawing);
+    }
+
+    void Redraw()
+    {
         if (ActualWidth <= 0) return;
+        using var dc = _drawing.Open();
+        Paint(dc);
+    }
+
+    void Paint(DrawingContext dc)
+    {
         double R = Radius * (1 + _hover.X * 0.04);
         double sq = Math.Clamp(_squash.X * 0.04, -0.22, 0.28);
         double bob = Math.Sin(_t * 1.7) * 3 * (_mood == Mood.Working ? 0.3 : 1);
@@ -288,8 +322,7 @@ public sealed class Blob : FrameworkElement
 
         // shadow on the floor, smaller when Morph is in the air
         double air = Math.Clamp(-lift / 60, 0, 1);
-        var shadowBrush = new RadialGradientBrush(Color.FromArgb((byte)(70 * (1 - air * 0.6)), 20, 10, 40), Color.FromArgb(0, 20, 10, 40));
-        if (Shadow) dc.DrawEllipse(shadowBrush, null, new Point(c0.X, c0.Y + R * 1.02), R * (0.95 + sq) * (1 - air * 0.3), R * 0.17 * (1 - air * 0.3));
+        if (Shadow) dc.DrawEllipse(ShadowBrush((byte)(70 * (1 - air * 0.6))), null, new Point(c0.X, c0.Y + R * 1.02), R * (0.95 + sq) * (1 - air * 0.3), R * 0.17 * (1 - air * 0.3));
 
         // body outline
         for (int i = 0; i < N; i++)
@@ -304,8 +337,16 @@ public sealed class Blob : FrameworkElement
         }
         var body = Smooth(_pts);
 
-        var fill = new LinearGradientBrush(_c1, _c2, new Point(0.2, 0), new Point(0.8, 1));
-        dc.DrawGeometry(fill, null, body);
+        if (_bodyBrush == null || _bodyC1 != _c1 || _bodyC2 != _c2)
+        {
+            _bodyC1 = _c1; _bodyC2 = _c2;
+            _bodyBrush = Freeze(new LinearGradientBrush(_c1, _c2, new Point(0.2, 0), new Point(0.8, 1)));
+            var rim = new RadialGradientBrush { GradientOrigin = new Point(0.42, 0.36), Center = new Point(0.45, 0.42), RadiusX = 0.62, RadiusY = 0.62 };
+            rim.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 0.62));
+            rim.GradientStops.Add(new GradientStop(Color.FromArgb(70, Dark(_c2).R, Dark(_c2).G, Dark(_c2).B), 1));
+            _rimBrush = Freeze(rim);
+        }
+        dc.DrawGeometry(_bodyBrush, null, body);
 
         // liquid rising inside
         if (_fill.X > 0.003)
@@ -323,25 +364,26 @@ public sealed class Blob : FrameworkElement
                 g.LineTo(new Point(right, bottom + 20), true, false);
             }
             wave.Freeze();
-            dc.DrawGeometry(new LinearGradientBrush(Mix(_liquid, Colors.White, 0.25), _liquid, 90) { Opacity = 0.92 }, null, wave);
-            foreach (var p in _particles.Where(p => p.Type == 2 && p.Y > level))
-                dc.DrawEllipse(null, new Pen(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 1.2), new Point(p.X, p.Y), p.Size, p.Size);
+            if (_liquidBrush == null || _liquidShown != _liquid)
+            {
+                _liquidShown = _liquid;
+                _liquidBrush = Freeze(new LinearGradientBrush(Mix(_liquid, Colors.White, 0.25), _liquid, 90) { Opacity = 0.92 });
+            }
+            dc.DrawGeometry(_liquidBrush, null, wave);
+            foreach (var p in _particles)
+                if (p.Type == 2 && p.Y > level) dc.DrawEllipse(null, BubblePen, new Point(p.X, p.Y), p.Size, p.Size);
             dc.Pop();
         }
 
         // depth: a darker rim and a soft glow from the top left
-        var rim = new RadialGradientBrush { GradientOrigin = new Point(0.42, 0.36), Center = new Point(0.45, 0.42), RadiusX = 0.62, RadiusY = 0.62 };
-        rim.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 0.62));
-        rim.GradientStops.Add(new GradientStop(Color.FromArgb(70, Dark(_c2).R, Dark(_c2).G, Dark(_c2).B), 1));
-        dc.DrawGeometry(rim, null, body);
-        var glow = new RadialGradientBrush(Color.FromArgb(120, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)) { Center = new Point(0.34, 0.28), GradientOrigin = new Point(0.34, 0.28), RadiusX = 0.42, RadiusY = 0.36 };
-        dc.DrawGeometry(glow, null, body);
+        dc.DrawGeometry(_rimBrush, null, body);
+        dc.DrawGeometry(GlowBrush, null, body);
 
         // gloss
         dc.PushTransform(new RotateTransform(-28, c.X - R * 0.42, c.Y - R * 0.5));
-        dc.DrawEllipse(new RadialGradientBrush(Color.FromArgb(215, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)), null, new Point(c.X - R * 0.42, c.Y - R * 0.5), R * 0.27, R * 0.13);
+        dc.DrawEllipse(GlossBrush, null, new Point(c.X - R * 0.42, c.Y - R * 0.5), R * 0.27, R * 0.13);
         dc.Pop();
-        dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)), null, new Point(c.X - R * 0.14, c.Y - R * 0.72), R * 0.045, R * 0.04);
+        dc.DrawEllipse(SpeckBrush, null, new Point(c.X - R * 0.14, c.Y - R * 0.72), R * 0.045, R * 0.04);
 
         DrawFace(dc, c, R, sq);
 
@@ -352,14 +394,15 @@ public sealed class Blob : FrameworkElement
             else if (p.Type == 1)
             {
                 double r = p.Size * (1 + life * 0.9);
-                dc.DrawEllipse(null, new Pen(new SolidColorBrush(Color.FromArgb((byte)(160 * (1 - life)), p.Color.R, p.Color.G, p.Color.B)), 3 * (1 - life) + 0.5), new Point(p.X, p.Y + bob), r * 1.08, r);
+                dc.DrawEllipse(null, Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromArgb((byte)(160 * (1 - life)), p.Color.R, p.Color.G, p.Color.B))), 3 * (1 - life) + 0.5)), new Point(p.X, p.Y + bob), r * 1.08, r);
             }
         }
     }
 
     void DrawFace(DrawingContext dc, Point c, double R, double sq)
     {
-        var ink = new SolidColorBrush(Ink);
+        if (_inkBrush == null || _inkShown != Ink) { _inkShown = Ink; _inkBrush = Freeze(new SolidColorBrush(Ink)); }
+        var ink = _inkBrush;
         R *= FaceScale;
         double lx = _lookX.X * R * 0.16, ly = _lookY.X * R * 0.12;
         var fc = new Point(c.X + lx * 0.6, c.Y + ly * 0.6 + R * sq * 0.3);
@@ -381,24 +424,22 @@ public sealed class Blob : FrameworkElement
                     g.QuadraticBezierTo(new Point(e.X, e.Y - ry * 1.35), new Point(e.X + rx * 1.15, e.Y + ry * 0.25), true, true);
                 }
                 arc.Freeze();
-                dc.DrawGeometry(null, new Pen(ink, rx * 0.62) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, arc);
+                dc.DrawGeometry(null, Freeze(new Pen(ink, rx * 0.62) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }), arc);
             }
             else
             {
                 dc.DrawEllipse(ink, null, e, rx, ry);
                 if (ry > rx * 0.5)
                 {
-                    var w = new SolidColorBrush(Color.FromArgb(240, 255, 255, 255));
-                    dc.DrawEllipse(w, null, new Point(e.X + rx * 0.34 + lx * 0.15, e.Y - ry * 0.36), rx * 0.38, rx * 0.38);
-                    dc.DrawEllipse(w, null, new Point(e.X - rx * 0.32, e.Y + ry * 0.38), rx * 0.17, rx * 0.17);
+                    dc.DrawEllipse(EyeShine, null, new Point(e.X + rx * 0.34 + lx * 0.15, e.Y - ry * 0.36), rx * 0.38, rx * 0.38);
+                    dc.DrawEllipse(EyeShine, null, new Point(e.X - rx * 0.32, e.Y + ry * 0.38), rx * 0.17, rx * 0.17);
                 }
             }
         }
 
         // cheeks
-        var blush = new RadialGradientBrush(Color.FromArgb(150, 255, 110, 160), Color.FromArgb(0, 255, 110, 160));
-        dc.DrawEllipse(blush, null, new Point(fc.X - R * 0.5, fc.Y + R * 0.1), R * 0.16, R * 0.1);
-        dc.DrawEllipse(blush, null, new Point(fc.X + R * 0.5, fc.Y + R * 0.1), R * 0.16, R * 0.1);
+        dc.DrawEllipse(Blush, null, new Point(fc.X - R * 0.5, fc.Y + R * 0.1), R * 0.16, R * 0.1);
+        dc.DrawEllipse(Blush, null, new Point(fc.X + R * 0.5, fc.Y + R * 0.1), R * 0.16, R * 0.1);
 
         // mouth: a curve that can open into a little oval (with a tongue)
         double open = Math.Clamp(_mouthOpen.X, 0, 1.2), curve = _mouthCurve.X, wide = R * Math.Clamp(_mouthWide.X, 0.08, 0.45);
@@ -412,7 +453,7 @@ public sealed class Blob : FrameworkElement
                 g.QuadraticBezierTo(new Point(m.X, m.Y + curve * R * 0.11), new Point(m.X + wide / 2, m.Y - curve * R * 0.03), true, true);
             }
             g0.Freeze();
-            dc.DrawGeometry(null, new Pen(ink, R * 0.045) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, g0);
+            dc.DrawGeometry(null, Freeze(new Pen(ink, R * 0.045) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }), g0);
         }
         else
         {
@@ -428,7 +469,7 @@ public sealed class Blob : FrameworkElement
             shape.Freeze();
             dc.DrawGeometry(ink, null, shape);
             dc.PushClip(shape);
-            dc.DrawEllipse(new SolidColorBrush(Hex("#FF7FA6")), null, new Point(m.X, m.Y - h * 0.35 + h * 0.95), wide * 0.32, h * 0.38);
+            dc.DrawEllipse(Tongue, null, new Point(m.X, m.Y - h * 0.35 + h * 0.95), wide * 0.32, h * 0.38);
             dc.Pop();
         }
 
@@ -445,7 +486,7 @@ public sealed class Blob : FrameworkElement
                 g.BezierTo(new Point(d.X - s, d.Y + s), new Point(d.X - s * 1.2, d.Y - s * 0.2), new Point(d.X, d.Y - s * 1.8), true, true);
             }
             drop.Freeze();
-            dc.DrawGeometry(new LinearGradientBrush(Hex("#D8F1FF"), Hex("#7CC4FF"), 90), null, drop);
+            dc.DrawGeometry(Sweat, null, drop);
         }
     }
 
@@ -462,8 +503,27 @@ public sealed class Blob : FrameworkElement
             }
         }
         g.Freeze();
-        dc.DrawGeometry(new SolidColorBrush(color), null, g);
+        dc.DrawGeometry(Freeze(new SolidColorBrush(color)), null, g);
     }
+
+    // ── brushes: the constant ones are made once, the ones that follow the colours only when those change ──
+
+    Brush? _bodyBrush, _rimBrush, _liquidBrush, _inkBrush;
+    Color _bodyC1, _bodyC2, _liquidShown, _inkShown;
+    readonly Brush?[] _shadows = new Brush?[256];
+
+    Brush ShadowBrush(byte alpha) => _shadows[alpha] ??= Freeze(new RadialGradientBrush(Color.FromArgb(alpha, 20, 10, 40), Color.FromArgb(0, 20, 10, 40)));
+
+    static T Freeze<T>(T f) where T : Freezable { f.Freeze(); return f; }
+
+    static readonly Brush GlowBrush = Freeze(new RadialGradientBrush(Color.FromArgb(120, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)) { Center = new Point(0.34, 0.28), GradientOrigin = new Point(0.34, 0.28), RadiusX = 0.42, RadiusY = 0.36 });
+    static readonly Brush GlossBrush = Freeze(new RadialGradientBrush(Color.FromArgb(215, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)));
+    static readonly Brush SpeckBrush = Freeze(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)));
+    static readonly Brush EyeShine = Freeze(new SolidColorBrush(Color.FromArgb(240, 255, 255, 255)));
+    static readonly Brush Blush = Freeze(new RadialGradientBrush(Color.FromArgb(150, 255, 110, 160), Color.FromArgb(0, 255, 110, 160)));
+    static readonly Brush Tongue = Freeze(new SolidColorBrush(Hex("#FF7FA6")));
+    static readonly Brush Sweat = Freeze(new LinearGradientBrush(Hex("#D8F1FF"), Hex("#7CC4FF"), 90));
+    static readonly Pen BubblePen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255))), 1.2));
 
     /// <summary>A closed curve through the points (Catmull-Rom as cubic Béziers).</summary>
     internal static StreamGeometry Smooth(IReadOnlyList<Point> p)

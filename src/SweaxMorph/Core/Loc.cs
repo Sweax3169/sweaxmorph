@@ -141,6 +141,19 @@ public static class Loc
         ["S.FormatsHint"] = "{0} formats, {1} conversions available on this PC.",
         ["S.About"] = "About",
         ["S.Version"] = "Version {0}",
+        ["S.Place"] = "Where Morph opens",
+        ["S.PlaceHint"] = "Always on the monitor your pointer is on, at that monitor's own scale. Drag the cloud around Morph to move it.",
+        ["S.PlaceCursor"] = "Next to the pointer",
+        ["S.PlaceCenter"] = "Middle of the screen",
+        ["S.PlaceRemember"] = "Where I left it",
+        ["S.Admin"] = "Also over administrator windows",
+        ["S.AdminHint"] = "Windows keeps the keys of administrator windows (Task Manager, installers, many games) away from ordinary apps, so the shortcut can't reach Morph there. With this on, a tiny helper with administrator rights listens for your shortcut in those windows too. Windows asks once.",
+        ["S.AdminOn"] = "On: the helper is running.",
+        ["S.AdminAsk"] = "Asking Windows…",
+        ["S.AdminNo"] = "Windows said no, so it stays off.",
+        ["S.AdminFail"] = "The helper didn't start. It stays off; the log has the details.",
+        ["S.Look"] = "Look",
+        ["S.LookHint"] = "Pick Morph's flavour. Files still paint Morph in their own colour; the palette changes the world around them.",
     };
 
     static readonly Dictionary<string, string> Tr = new()
@@ -246,5 +259,18 @@ public static class Loc
         ["S.FormatsHint"] = "Bu bilgisayarda {0} format, {1} dönüşüm hazır.",
         ["S.About"] = "Hakkında",
         ["S.Version"] = "Sürüm {0}",
+        ["S.Place"] = "Morph nerede açılsın",
+        ["S.PlaceHint"] = "Her zaman imlecin bulunduğu monitörde, o monitörün kendi ölçeğinde. Taşımak için Morph'un etrafındaki buluttan sürükle.",
+        ["S.PlaceCursor"] = "İmlecin yanında",
+        ["S.PlaceCenter"] = "Ekranın ortasında",
+        ["S.PlaceRemember"] = "Bıraktığım yerde",
+        ["S.Admin"] = "Yönetici pencerelerinin üstünde de çalış",
+        ["S.AdminHint"] = "Windows, yönetici pencerelerine (Görev Yöneticisi, kurulum programları, birçok oyun) basılan tuşları sıradan uygulamalardan saklar; kısayol oradayken Morph'a ulaşamaz. Bu açıkken, yönetici izinli küçük bir yardımcı o pencerelerde de kısayolunu dinler. Windows bir kez sorar.",
+        ["S.AdminOn"] = "Açık: yardımcı çalışıyor.",
+        ["S.AdminAsk"] = "Windows'a soruluyor…",
+        ["S.AdminNo"] = "Windows izin vermedi, kapalı kalıyor.",
+        ["S.AdminFail"] = "Yardımcı başlamadı. Kapalı kalıyor; ayrıntı günlükte.",
+        ["S.Look"] = "Görünüm",
+        ["S.LookHint"] = "Morph'un tadını seç. Dosyalar Morph'u yine kendi renklerine boyar; palet onların etrafındaki dünyayı değiştirir.",
     };
 }
