@@ -39,6 +39,7 @@ public static class Bench
     static double _refMs = 1000 / 60.0;
     static Process? _listener;
     static bool OnTop => Environment.GetCommandLineArgs().Contains("--ontop");
+    static bool Cloaked => !OnTop && !Environment.GetCommandLineArgs().Contains("--dwm");
     static readonly StringBuilder _steps = new();
 
     static Win32.POINT cursor;
@@ -55,7 +56,13 @@ public static class Bench
         Well.BenchQuiet = true;
         Well.BenchActive = true;
         bool onTop = Environment.GetCommandLineArgs().Contains("--ontop");
-        Seam("BenchBottom", !onTop); // newer builds place the Well at the bottom themselves
+        bool dwm = Environment.GetCommandLineArgs().Contains("--dwm");
+        // A layered window is drawn at full speed even when cloaked (Windows composes nothing of it and it takes no
+        // mouse), so the bench cloaks it: nobody sees it, whatever is on the screen. The compositor-blended window is
+        // throttled when cloaked, so for it (--dwm) the bench uses the bottom of the z-order instead.
+        bool cloak = !dwm && !onTop;
+        Seam("BenchCloak", cloak);
+        Seam("BenchBottom", dwm && !onTop); // newer builds place the Well at the bottom themselves
         if (Environment.GetCommandLineArgs().Contains("--layered")) Seam("Layered", true);
         if (Environment.GetCommandLineArgs().Contains("--dwm")) Seam("Layered", false);
         Well.BenchCreated = w =>
@@ -64,11 +71,12 @@ public static class Bench
             // less often or not at all), but under every window, the desktop included. (No opacity on top: that would
             // make WPF draw the whole window through an extra layer every frame, which the app itself never does.)
             IntPtr h = new WindowInteropHelper(w).Handle;
-            if (!onTop) w.Topmost = false;
+            if (cloak) { int on = 1; Win32.DwmSetWindowAttribute(h, 13, ref on, 4); } // DWMWA_CLOAK
+            else if (!onTop) w.Topmost = false;
             w.IsVisibleChanged += (_, _) =>
             {
                 Visibility.Add((Now, w.IsVisible));
-                if (w.IsVisible && !onTop) Win32.SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
+                if (w.IsVisible && !onTop && !cloak) Win32.SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
             };
             w.LayoutUpdated += (_, _) => _layouts++;
         };
@@ -100,7 +108,7 @@ public static class Bench
     {
         string version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "?";
         r.AppendLine($"SweaxMorph {version} bench · {DateTime.Now:yyyy-MM-dd HH:mm} · {Environment.ProcessPath}");
-        r.AppendLine($"window: {(app.GetWell().AllowsTransparency ? "layered (AllowsTransparency)" : "compositor-blended (DWM)")}");
+        r.AppendLine($"window: {(SeamValue("Layered") is false ? "compositor-blended (DWM)" : "layered (AllowsTransparency)")} · {(Cloaked ? "cloaked (drawn, never shown)" : OnTop ? "on top, visible" : "under every window")}");
         using (var p = Process.GetCurrentProcess())
             r.AppendLine($"process start → bench ready: {(DateTime.Now - p.StartTime).TotalMilliseconds:0} ms · render tier {RenderCapability.Tier >> 16}");
         r.AppendLine($"UI Automation listeners: structure {AutomationPeer.ListenerExists(AutomationEvents.StructureChanged)}, property {AutomationPeer.ListenerExists(AutomationEvents.PropertyChanged)}, focus {AutomationPeer.ListenerExists(AutomationEvents.AutomationFocusChanged)}");
@@ -148,6 +156,7 @@ public static class Bench
         CompositionTarget.Rendering -= OnFrame;
         double idleClock = Median(Gaps(Frames.ToList()));
         _refMs = 1000.0 / Math.Max(30, mons.First(m => m.Primary).Hz);
+        r.AppendLine($"memory after start, before any opening: {Memory()}");
         r.AppendLine($"WPF frame clock with no window shown: {idleClock:0.00} ms · a missed frame = a gap over {_refMs * 1.6:0.0} ms (1.6 refreshes of the primary monitor)");
         await Settle();
 
@@ -177,7 +186,7 @@ public static class Bench
             openMs.Add(shown - t0);
             firstMs.Add(ready - t0);
             var w = app.GetWell();
-            if (!OnTop && Exposed(w) is { } what) { r.AppendLine("STOPPED: the bench window was not covered (" + what + ")"); w.Hide(); return; }
+            if (!OnTop && !Cloaked && Exposed(w) is { } what) { r.AppendLine("STOPPED: the bench window was not covered (" + what + ")"); w.Hide(); return; }
             string place = Placement(w, cursor, mon, out double err);
             placeErr.Add(err);
             r.AppendLine($"open {c + 1} on {mon.Name}{(c == 0 ? " (first open after start)" : "")}: visible after {shown - t0:0.0} ms · first frame {first - t0:0.0} ms · painted {ready - t0:0.0} ms{(_steps.Length > 0 ? " · in Open: " + _steps : "")}");
@@ -336,19 +345,23 @@ public static class Bench
             string exe = Environment.ProcessPath!;
             string instance = Arg(args, "--instance") ?? "bench";
             var lat = new List<double>();
+            var toOpen = new List<double>();
+            var toClose = new List<double>();
             int ipcLost = 0;
-            for (int i = 0; i < (quick ? 3 : 6); i++)
+            for (int i = 0; i < 8; i++)
             {
                 bool before = app.GetWell().IsVisible;
                 int seen = Visibility.Count;
                 double t0 = Now;
                 using var p = Process.Start(new ProcessStartInfo(exe, $"--toggle --instance {instance} --no-install") { UseShellExecute = false, WorkingDirectory = Path.GetTempPath() })!;
                 double flip = await Until(() => Visibility.Count > seen, 6000);
-                if (Visibility.Count > seen) lat.Add(flip - t0); else ipcLost++;
+                if (Visibility.Count > seen) { lat.Add(flip - t0); (before ? toClose : toOpen).Add(flip - t0); } else ipcLost++;
                 await p.WaitForExitAsync();
                 await Task.Delay(900);
             }
             r.AppendLine($"    --toggle from a new process: {lat.Count} of {lat.Count + ipcLost} arrived · latency median {Median(lat):0} ms, max {(lat.Count > 0 ? lat.Max() : 0):0} ms");
+            // closing includes Morph's 170 ms fade before the window goes; opening shows at once
+            r.AppendLine($"    --toggle to open: median {Median(toOpen):0} ms (max {(toOpen.Count > 0 ? toOpen.Max() : 0):0}) · to close (incl. the 170 ms fade): median {Median(toClose):0} ms");
             int pairsLost = 0;
             for (int i = 0; i < 3; i++)
             {

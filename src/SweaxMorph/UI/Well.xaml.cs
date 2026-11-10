@@ -66,6 +66,8 @@ public partial class Well : Window
     internal static bool BenchActive;
     /// <summary>The bench's Well sits at the very bottom of the z-order, under the desktop: on screen for WPF and the compositor, seen by no one.</summary>
     internal static bool BenchBottom;
+    /// <summary>The bench keeps its Well cloaked for good (after the warm-up too).</summary>
+    internal static bool BenchCloak;
     /// <summary>The bench times the steps of an opening.</summary>
     internal static Action<string>? BenchStep;
     /// <summary>
@@ -205,11 +207,11 @@ public partial class Well : Window
         FitRegion(true);
         Show();
         long until = Environment.TickCount64 + 300;
+        _warmDone = done;
         _warming = (_, _) =>
         {
             if (Environment.TickCount64 < until) return;
             EndWarm(false);
-            done();
         };
         CompositionTarget.Rendering += _warming;
     }
@@ -221,9 +223,14 @@ public partial class Well : Window
         CompositionTarget.Rendering -= _warming;
         _warming = null;
         if (!stay) Hide();
-        Cloak(_hwnd, false);
+        Cloak(_hwnd, BenchCloak);
         if (!stay) Reset();
+        var done = _warmDone;
+        _warmDone = null;
+        done?.Invoke();
     }
+
+    Action? _warmDone;
 
     static void Cloak(IntPtr hwnd, bool on)
     {

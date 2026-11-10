@@ -36,14 +36,105 @@ sıvıyla dolar ve sonucu asıl dosyanın yanına bırakır. Sonucu doğrudan bi
 </tr>
 </table>
 
+## Sekiz tat
+
+Morph'un tadını **Ayarlar → Görünüm**'den seç. Anında değişir, yeniden başlatma yok: bulut, yazılar, düğmeler ve Morph'un
+kendi jölesi. Dosyalar Morph'u yine kendi renklerine boyar; palet onların etrafındaki dünyayı değiştirir. **Şeker**,
+ilk günkü görünüm.
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/palettes-dark-tr.gif">
+  <img src="docs/media/palettes-light-tr.gif" width="420" alt="Morph paleti canlı değiştiriyor: Şeker, Nane, Şeftali, Lagün, Böğürtlen, Limonata, Gün batımı, Bulut">
+</picture>
+</p>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/palettes-dark-tr.png">
+  <img src="docs/media/palettes-light-tr.png" width="100%" alt="Sekiz paletin her birinde bekleyen Morph">
+</picture>
+
+| Palet | Jöle | Hava |
+|---|---|---|
+| **Şeker** | lavanttan pembeye | 1.0'ın görünümü, mürdüm bir gece |
+| **Nane** | taze naneden deniz yeşiline | gece deniz camı |
+| **Şeftali** | şeftaliden mercana | kakaolu bir gece |
+| **Lagün** | gökyüzünden çivit mavisine | derin su |
+| **Böğürtlen** | leylaktan menekşeye | frenk üzümü |
+| **Limonata** | limondan misket limonuna | gece bahçesi |
+| **Gün batımı** | kayısıdan orkideye | alacakaranlık |
+| **Bulut** | inciden arduvaza | sakin masalar |
+
+<p align="center"><img src="docs/media/look-light-tr.png" width="560" alt="Ayarlar → Görünüm: tema ve her birini Morph'un kendisinin çizdiği sekiz palet kutusu"></p>
+
 ## Üç giriş yolu
 
 | | |
 |---|---|
-| <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Morph'u her yerden, imlecinin altında açar. Kısayolu Ayarlar'dan değiştirebilirsin; istediğin tuş birleşimini kaydeder. |
+| <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Morph'u imlecinin yanında, imleç hangi monitördeyse orada açar. Morph zaten başka bir monitörde bekliyorsa gizlenmek yerine yanına gelir. Kısayolu Ayarlar'dan değiştirebilirsin; istediğin tuş birleşimini kaydeder. |
 | Makro tuşu | Klavyendeki makro tuşuna <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F9</kbd> gibi bir birleşim kaydet, sonra Ayarlar'da **Değiştir**'e basıp makro tuşuna bas. F13–F24, Pause ve Scroll Lock tek başına da olur; program çalıştıran makro yazılımları `SweaxMorph.exe --toggle` kullanabilir. |
 | Sürüklerken <kbd>Boşluk</kbd> | Gezgin'de dosya sürüklemeye başla, Boşluk'a dokun; Morph tam dosyaların altında belirir. Morph'a ya da doğrudan bir yaprağa bırak. |
 | Sağ tık → **SweaxMorph ile dönüştür** | **Gönder** menüsünde de var. On dosya seçersen hepsi birlikte gelir. Windows 11'de **Diğer seçenekleri göster** altında. |
+
+### Morph nerede açılır
+
+Her zaman imlecin bulunduğu monitörde, o monitörün kendi ölçeğinde. **Ayarlar → Morph nerede açılsın** kısmından
+**imlecin yanında** (varsayılan), **ekranın ortasında** ya da **bıraktığım yerde** seç: taşımak için Morph'un etrafındaki
+buluttan sürükle, bir dahaki sefere orada açılır. Morph tam ekran pencerelerin üstünde kalır, her zaman üstte duran başka
+bir pencere onu örterse kendini yukarı kaldırır.
+
+**Yönetici pencereleri.** Windows, yönetici pencerelerine (Görev Yöneticisi, kurulum programları, birçok oyun) basılan
+tuşları sıradan uygulamalardan saklar; kısayol oradayken Morph'a ulaşamaz. **Yönetici pencerelerinin üstünde de çalış**'ı
+aç: yönetici izinli küçük bir yardımcı o pencerelerde de kısayolunu dinler. Windows bir kez sorar. SweaxMorph'un kendisi
+sıradan bir uygulama olarak kalır, yani Gezgin'den dosya sürüklemek çalışmaya devam eder.
+
+<p align="center"><img src="docs/media/place-light-tr.png" width="560" alt="Ayarlar: Morph nerede açılsın ve yönetici pencereleri seçeneği"></p>
+
+## Hızlı ve sağlam
+
+1.1 sürümü, SweaxMorph'un kendi ölçüm aracıyla (`SweaxMorph.exe --bench`) önce ve sonra, geliştirildiği bilgisayarda
+ölçüldü: Ryzen 5 7600, 240 Hz ana monitör ve iki monitör daha. Aynı görünüm, aynı animasyonlar, aynı dönüşümler; kendi
+kendini sınamanın 103 dönüşümünün hepsi geçiyor.
+
+| | 1.0.5 | 1.1 |
+|---|---:|---:|
+| Kısayol → Morph ekranda, açılıştan sonraki ilk sefer | 162 ms | **9 ms** |
+| Kısayol → Morph ekranda, sonraki seferler | 7 ms | 7 ms (zaten hızlıydı) |
+| Makro tuşundan ya da başlatıcıdan `--toggle`, açmak için (ortanca / en kötü) | 460 / 1,197 ms | **65 / 74 ms** |
+| 60 ms arayla iki `--toggle` | 3 seferin 3'ünde biri kayboldu | **hiç kaybolmadı** |
+| Morph başka monitörde beklerken kısayol | gizliyordu | **yanına getiriyor** |
+| Morph hareket ederken saniyede yerleşim turu | 240 | **0** |
+| UI Automation istemcisi çalışırken ilk açılış (`--uia`) | 222 ms | **9 ms** |
+| 4000 × 2600 fotoğraf dönüşürken en uzun kare | 97 ms | **24 ms** |
+| Açılırken / sürüklerken kare hızı | saniyede 233 / 238 | saniyede 233 / 231 (ikisi de yenileme hızında) |
+| Uyurken ya da tepside beklerken işlemci | %0 | %0 |
+| Açılıştan sonra özel bellek | 73 MB | 87 MB (Morph hazır tutuluyor) |
+
+Ne oluyordu, ne değişti:
+
+- **Kısayol bazen "açmıyordu".** Başka yere tıklayınca Morph üstte bekler. O sırada kısayola basmak, Morph göremediğin
+  başka bir monitörde beklese bile onu gizliyordu. Artık kısayol Morph'u yalnızca seninleyken kaldırıyor; değilse imlecin
+  monitörüne, o monitörün ölçeğinde yanına geliyor. Sürüklerken Boşluk ve sağ tık menüsü de onu imlece getiriyor.
+- **`--toggle` ~600 ms sürüyor ve basış kaybedebiliyordu.** İkinci başlatma işi devretmeden önce bütün WPF'i açıyordu,
+  her istek 280 ms bekletilip bir sonrakiyle birleştiriliyordu. Artık WPF başlamadan devrediyor, komutlar sırayla ve hemen
+  geçiyor; gönderen taraf Morph'un öne gelmesine de izin veriyor.
+- **Her karede bir yerleşim turu.** Morph, WPF'e her karede bütün pencereyi yeniden yerleştirten bir yolla çiziliyordu.
+  Pencereye bakan bir UI Automation istemcisi varken (dokunmatik klavye, emoji paneli, PowerToys: bu bilgisayarda var)
+  WPF her seferinde bütün pencereyi dolaşıp raporluyor. Morph artık önbellekli fırçalarla saklı bir çizime çiziliyor;
+  pencere UI Automation'a yalnızca kendini bildiriyor.
+- **Yavaş ilk açılış, aradan sonra yavaşlık.** Pencere artık açılışta bir kez, görünmeden kuruluyor ve çiziliyor. 1.0
+  her kapanıştan birkaç saniye sonra belleğini boşaltıyordu; sonraki açılış ve yazdığın her tuşta klavye kancası her şeyi
+  geri yüklemek zorunda kalıyordu. Windows bir kez geç cevap veren kancayı sessizce kaldırır, kanca ise 10 dakikada bir
+  yeniden kuruluyordu. Artık bellek yalnızca bilgisayara 10 dakika dokunulmayınca geri veriliyor, kanca hiç bellek
+  ayırmıyor ve 20 saniyede bir yeniden kuruluyor, çöp toplama arka planda çalışıyor.
+- **Olası bir donma.** Öne gelirken öndeki pencerenin girdisini, o pencere yanıt vermiyor olsa bile ödünç alabiliyordu;
+  bu Morph'u da onunla birlikte donduruyordu. Artık önce etkisiz bir girdi kullanıyor ve yanıt vermeyen pencereye hiç
+  dokunmuyor.
+- **Dönüştürme bitince takılma.** Sonuçların simgeleri, tam Morph sevinirken arayüz iş parçacığında kabuktan isteniyordu.
+  Artık kendi iş parçacığında yükleniyor.
+- **Daha hızlı ölçülen pencere kaldı.** Birleştirici saydamlığı (SweaxClip panelinin kullandığı) da yapıldı ve ölçüldü,
+  üstte de altta da: Morph'un bulutu ve yapraklarıyla açılışı ve sürüklemeyi saniyede 100–125 karede çizdi, katmanlı
+  pencere 185–235 karede; bu yüzden Morph katmanlı penceresini koruyor. Ölçüm aracında ikisi de duruyor (`--dwm`).
 
 ## Her format
 
@@ -142,7 +233,7 @@ Hiçbir şey bir yere yüklenmez. Tek ağ trafiği, motorların projelerin resmi
 2. Kendini `%LOCALAPPDATA%\Programs\SweaxMorph` içine kopyalar, sağ tık girişini ekler ve Windows ile başlar. Yönetici izni gerekmez.
 3. <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd>'ye bas ve Morph'a bir şey bırak.
 
-Sen Gezgin'de dosya seçerken Morph üstte bekler; × düğmesi, <kbd>Esc</kbd> ya da kısayolla kapanır. Ayarlar, Morph'un sağ üstündeki dişliden ya da tepsi simgesinin menüsünden açılır. Kaldırmak için Ayarlar'dan sağ tık girişini ve başlangıçta açılmayı kapat, çık ve klasörü sil.
+Sen Gezgin'de dosya seçerken Morph üstte bekler; × düğmesi, <kbd>Esc</kbd> ya da kısayolla kapanır. Ayarlar, Morph'un sağ üstündeki dişliden ya da tepsi simgesinin menüsünden açılır. 1.0'dan güncellemek ayarlarını korur (eski dosya yenisinin yanında `settings.json.1.0.bak` olarak durur). Kaldırmak için Ayarlar'dan sağ tık girişini, başlangıçta açılmayı ve yönetici seçeneğini kapat, çık ve klasörü sil.
 
 <img src="docs/media/settings-light-tr.png" width="720" alt="SweaxMorph ayarları">
 
@@ -153,7 +244,9 @@ dotnet build src/SweaxMorph -c Release
 ```
 
 .NET 9, WPF. `SweaxMorph.exe --selftest <klasör>` örnek dosyalar üretip yüz kadar dönüşüm yapar ve rapor yazar;
-`--shots <klasör>` bu sayfadaki görselleri ve kaydı üretir.
+`--shots <klasör>` ve `--palettes <klasör>` bu sayfadaki görselleri ve kayıtları üretir; `--bench <dosya> --instance bench`
+açılışı, kare akışını, sürüklemeyi, dönüştürmeyi, boştaki işlemciyi, belleği, kaybolan istekleri ve her monitörde
+yerleşimi, penceresi hiç görünmeyen ayrı bir kopyada ölçer (`--uia` bir UI Automation istemcisi ekler).
 
 ## Teşekkürler
 

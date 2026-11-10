@@ -36,14 +36,104 @@ with liquid as it works, then pops out the result next to your original. Drag th
 </tr>
 </table>
 
+## Eight flavours
+
+Pick Morph's flavour in **Settings → Look**. It changes at once, no restart: the cloud, the words, the buttons and Morph's
+own gel. Files still paint Morph in their own colour; a palette changes the world around them. **Candy** is the original look.
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/palettes-dark-en.gif">
+  <img src="docs/media/palettes-light-en.gif" width="420" alt="Morph changing palette live: Candy, Mint, Peach, Lagoon, Berry, Lemonade, Sunset, Cloud">
+</picture>
+</p>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/palettes-dark-en.png">
+  <img src="docs/media/palettes-light-en.png" width="100%" alt="Morph waiting in each of the eight palettes">
+</picture>
+
+| Palette | Gel | Mood |
+|---|---|---|
+| **Candy** | lavender into pink | the 1.0 look, a plum night |
+| **Mint** | fresh mint into sea green | sea glass at night |
+| **Peach** | peach into coral | a cocoa night |
+| **Lagoon** | sky into periwinkle | deep water |
+| **Berry** | lilac into violet | blackcurrant |
+| **Lemonade** | lemon into lime | a garden at night |
+| **Sunset** | apricot into orchid | dusk |
+| **Cloud** | pearl into slate | quiet desks |
+
+<p align="center"><img src="docs/media/look-light-en.png" width="560" alt="Settings → Look: theme and the eight palette tiles, each drawn by Morph itself"></p>
+
 ## Three ways in
 
 | | |
 |---|---|
-| <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Opens Morph under your pointer, from anywhere. Change the shortcut in Settings, it records any combination. |
+| <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Opens Morph next to your pointer, on whichever monitor it is on. Morph already waiting on another monitor comes over instead of hiding. Change the shortcut in Settings, it records any combination. |
 | A macro key | Record a combination such as <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F9</kbd> on your keyboard's macro key, then click **Change** in Settings and press the macro key. F13–F24, Pause and Scroll Lock work on their own; macro apps that run programs can use `SweaxMorph.exe --toggle`. |
 | <kbd>Space</kbd> while dragging | Start dragging files in Explorer, tap Space, and Morph pops up right under them. Drop on Morph, or straight on a petal. |
 | Right-click → **Convert with SweaxMorph** | Also in **Send to**. Select ten files and they all arrive together. On Windows 11 it's under **Show more options**. |
+
+### Where Morph opens
+
+Always on the monitor your pointer is on, at that monitor's own scale. In **Settings → Where Morph opens** pick
+**next to the pointer** (the default), **the middle of the screen**, or **where I left it**: drag the cloud around Morph to
+move it, and it opens there next time. Morph stays on top of full-screen windows and raises itself if another
+always-on-top window covers it.
+
+**Administrator windows.** Windows keeps the keys typed into administrator windows (Task Manager, installers, many games)
+away from ordinary apps, so a shortcut can't reach Morph there. Turn on **Also over administrator windows** and a tiny
+helper with administrator rights listens for your shortcut in those windows too. Windows asks once. SweaxMorph itself
+stays an ordinary app, so dragging files from Explorer keeps working.
+
+<p align="center"><img src="docs/media/place-light-en.png" width="560" alt="Settings: where Morph opens, and the administrator-windows option"></p>
+
+## Quick and steady
+
+Version 1.1 was measured before and after with SweaxMorph's own bench (`SweaxMorph.exe --bench`), on the PC it is built on:
+Ryzen 5 7600, 240 Hz main monitor plus two more. Same look, same animations, same conversions; all 103 self-test
+conversions pass.
+
+| | 1.0.5 | 1.1 |
+|---|---:|---:|
+| Shortcut → Morph on screen, first time after start | 162 ms | **9 ms** |
+| Shortcut → Morph on screen, later | 7 ms | 7 ms (it already was quick) |
+| `--toggle` from a macro key or a launcher, to open (median / worst) | 460 / 1,197 ms | **65 / 74 ms** |
+| Two `--toggle`s 60 ms apart | 3 of 3 lost one | **none lost** |
+| Shortcut while Morph waits on another monitor | hid it | **brings it over** |
+| Layout passes per second while Morph moves | 240 | **0** |
+| First open with a UI Automation client running (`--uia`) | 222 ms | **9 ms** |
+| Longest frame while a 4000 × 2600 photo converts | 97 ms | **24 ms** |
+| Frame rate while opening / dragging | 233 / 238 per s | 233 / 231 per s (both at the refresh rate) |
+| CPU dozing or waiting in the tray | 0% | 0% |
+| Private memory after start | 73 MB | 87 MB (Morph is kept ready) |
+
+What was going on, and what changed:
+
+- **The shortcut sometimes "didn't open".** Morph waits on top after you click elsewhere. Pressing the shortcut then hid
+  it, even when it was waiting on another monitor where you couldn't see it. Now the shortcut puts Morph away only when
+  it is with you; otherwise it comes over, on the pointer's monitor and at its scale. Space-while-dragging and the
+  right-click menu bring it to the pointer too.
+- **`--toggle` took ~600 ms and could lose a press.** A second launch started all of WPF before handing over, and every
+  request was held 280 ms and merged with the next. It now hands over before WPF starts, and commands go through at once,
+  in order. The sender also lets Morph take the focus.
+- **A layout pass every frame.** Morph was redrawn in a way that made WPF lay out the whole window each frame. With a UI
+  Automation client looking at the window (the touch keyboard, the emoji panel, PowerToys: this PC has one), WPF then
+  walks and reports the whole window each time. Morph now draws into a retained drawing with cached brushes; the window
+  reports only itself to UI Automation.
+- **Slow first open, slow after a break.** The window is now built and drawn once at start, invisibly. 1.0 also emptied
+  its memory a few seconds after every close, so the next open, and the keyboard hook on every key you typed, had to page
+  it back in; Windows silently drops a hook that answers late even once, and it was re-armed only every 10 minutes. Now
+  memory goes back only after 10 minutes of not touching the PC, the hook allocates nothing and is re-armed every 20 s,
+  and garbage collection runs in the background.
+- **A possible freeze.** Taking the focus could borrow the input of the window in front even when that window was hung,
+  which froze Morph with it. It now uses a no-op input first and never touches a window that isn't answering.
+- **A hitch when a conversion finished.** File icons for the results were asked of the shell on the UI thread, right
+  when Morph cheers. They now load on a thread of their own.
+- **Kept the window that measured faster.** Compositor transparency (what SweaxClip's panel uses) was built and measured
+  too, on top and underneath: with Morph's cloud and petals it drew opening and dragging at 100–125 frames a second against
+  185–235 for the layered window, so Morph keeps its layered window. The bench still has both (`--dwm`).
 
 ## Every format
 
@@ -143,7 +233,7 @@ releases.
 2. It copies itself to `%LOCALAPPDATA%\Programs\SweaxMorph`, adds the right-click entry and starts with Windows. No admin rights needed.
 3. Press <kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> and drop something on Morph.
 
-Morph waits on top while you go and pick a file in Explorer; close it with its × button, <kbd>Esc</kbd> or the shortcut. Settings open from the gear on Morph's top-right or the tray icon's menu. To remove SweaxMorph, turn off the right-click entry and start-up in Settings, quit, and delete the folder.
+Morph waits on top while you go and pick a file in Explorer; close it with its × button, <kbd>Esc</kbd> or the shortcut. Settings open from the gear on Morph's top-right or the tray icon's menu. Updating from 1.0 keeps your settings (the old file stays beside the new one as `settings.json.1.0.bak`). To remove SweaxMorph, turn off the right-click entry, start-up and the administrator option in Settings, quit, and delete the folder.
 
 <img src="docs/media/settings-light-en.png" width="720" alt="SweaxMorph settings">
 
@@ -154,7 +244,9 @@ dotnet build src/SweaxMorph -c Release
 ```
 
 .NET 9, WPF. `SweaxMorph.exe --selftest <folder>` makes sample files and runs about a hundred conversions,
-writing a report; `--shots <folder>` renders the pictures and the recording in this README.
+writing a report; `--shots <folder>` and `--palettes <folder>` render the pictures and recordings in this README;
+`--bench <file> --instance bench` times opening, frame pacing, dragging, converting, idle CPU, memory, lost requests and
+placement on every monitor, in a separate copy whose window is never shown (`--uia` adds a UI Automation client).
 
 ## Credits
 
